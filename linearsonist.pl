@@ -29,10 +29,6 @@ sub plan_from_input ($input) {
   #  state => $stateId
   #};
 
-  # if it starts with ++, then set get_authenticated_user() as value to assignee key in %task
-  if ($input =~ /\++/) {
-    $task{assigneeId} = get_authenticated_userId();
-  };
   # grab everything before ! and set it to $title
   my ($title, $team_name) = split /!/, $input, 2;
   $task{title} = $title;
@@ -53,7 +49,14 @@ sub get_authenticated_userId {
 };
 
 sub do_query {
-  my ($query, $variables) = @_;
+  my ($query, $variables, $arg) = @_;
+  $arg //= {};
+
+  if ($arg->{actor_id_as}) {
+    my $actor_id = get_authenticated_userId();
+
+    $variables->{$_} //= $actor_id for $arg->{actor_id_as}->@*;
+  }
 
   my $res = $lwp->post(
     $url,
@@ -98,6 +101,7 @@ sub create_issue ($input) {
       }
     ],
     $plan,
+    { actor_id_as => [ qw(assigneeId) ] },
   );
 };
 
