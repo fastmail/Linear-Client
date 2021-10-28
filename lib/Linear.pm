@@ -1,16 +1,25 @@
 use v5.34.0;
 use warnings;
+
+package Linear;
+
 use Cpanel::JSON::XS;
 use LWP::UserAgent;
-use Data::Dumper;
-use feature qw(signatures);
-no warnings qw(experimental::signatures);
 
-binmode STDOUT, ":utf8";
+use experimental 'signatures';
 
-my $url = q{https://api.linear.app/graphql};
-my $lwp = LWP::UserAgent->new;
-$lwp->default_header(Authorization => "lin_api_JoCSn1NbRqgSgrsk1GQS5DAvjUErHaFBIYc1GRSk");
+our $AUTH;
+
+our $API_URL = q{https://api.linear.app/graphql};
+
+sub _lwp {
+  die "no authentication configured!" unless defined $AUTH;
+
+  my $lwp = LWP::UserAgent->new;
+  $lwp->default_header(Authorization => $AUTH);
+
+  return $lwp;
+}
 
 my $JSON = Cpanel::JSON::XS->new->pretty->canonical;
 
@@ -58,8 +67,8 @@ sub do_query {
     $variables->{$_} //= $actor_id for $arg->{actor_id_as}->@*;
   }
 
-  my $res = $lwp->post(
-    $url,
+  my $res = _lwp()->post(
+    $API_URL,
     'Content-Type' => 'application/json',
     Content => encode_json({ query => $query, variables => $variables }),
   );
@@ -105,4 +114,4 @@ sub create_issue ($input) {
   );
 };
 
-create_issue("++ eat more scrapple");
+1;

@@ -1,0 +1,12 @@
+#!perl
+use v5.34.0;
+use warnings;
+
+use lib 'lib';
+use Linear;
+
+binmode STDOUT, ":utf8";
+
+$Linear::AUTH = $ENV{LINEAR_AUTH} // die "no LINEAR_AUTH env var set!\n";
+
+Linear::create_issue("++ eat more scrapple");
