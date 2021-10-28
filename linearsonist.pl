@@ -14,28 +14,30 @@ $lwp->default_header(Authorization => "lin_api_JoCSn1NbRqgSgrsk1GQS5DAvjUErHaFBI
 
 my $JSON = Cpanel::JSON::XS->new->pretty->canonical;
 
-# if ++ assign to me, which we get through query ME
-# regex it so that whatever is after the ! is the team
-my %task = (
-  description => q{},
-  teamId => 'c4196244-4381-498b-ae0b-9288fc459cdd',
-);
-#my %task = {
-#  title => $title
-#  description => $description
-#  assigneeId => $assignee
-#  team => $teamId
-#  state => $stateId
-#};
-
 sub plan_from_input ($input) {
- # if it starts with ++, then set get_authenticated_user() as value to assignee key in %task
- if ($input =~ /\++/) {
-     $task{assigneeId} = get_authenticated_userId();
- };
- # grab everything before ! and set it to $title
- my ($title, $team_name) = split /!/, $input, 2;
- $task{title} = $title;
+  # if ++ assign to me, which we get through query ME
+  # regex it so that whatever is after the ! is the team
+  my %task = (
+    description => q{},
+    teamId => 'c4196244-4381-498b-ae0b-9288fc459cdd',
+  );
+  #my %task = {
+  #  title => $title
+  #  description => $description
+  #  assigneeId => $assignee
+  #  team => $teamId
+  #  state => $stateId
+  #};
+
+  # if it starts with ++, then set get_authenticated_user() as value to assignee key in %task
+  if ($input =~ /\++/) {
+    $task{assigneeId} = get_authenticated_userId();
+  };
+  # grab everything before ! and set it to $title
+  my ($title, $team_name) = split /!/, $input, 2;
+  $task{title} = $title;
+
+  return \%task;
 };
 
 sub get_authenticated_userId {
@@ -56,7 +58,7 @@ sub do_query {
   my $res = $lwp->post(
     $url,
     'Content-Type' => 'application/json',
-    Content => encode_json({ query => $query, variables => \%task }),
+    Content => encode_json({ query => $query, variables => $variables }),
   );
   warn "<<<" . $res->request->as_string . "\n>>>\n";;
 
@@ -67,8 +69,8 @@ sub do_query {
 };
 
 sub create_issue ($input) {
-  plan_from_input($input);
-  # do mutation with values from %task
+  my $plan = plan_from_input($input);
+  # do mutation with values from the plan
   do_query(
     q[
       mutation IssueCreate (
@@ -95,7 +97,7 @@ sub create_issue ($input) {
         }
       }
     ],
-    \%task,
+    $plan,
   );
 };
 
