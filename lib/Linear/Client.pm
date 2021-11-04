@@ -4,9 +4,11 @@ use warnings;
 package Linear::Client;
 use Moose;
 
+use Future::AsyncAwait;
 use Cpanel::JSON::XS;
 use LWP::UserAgent;
-
+use Net::Async::HTTP;
+use IO::Async::Loop;
 use experimental 'signatures';
 
 has api_url => (
@@ -20,14 +22,16 @@ has auth_token => (
   required => 1,
 );
 
-has _lwp => (
+has _http => (
   is   => 'ro',
   lazy => 1,
   default => sub ($self, @) {
-    my $lwp = LWP::UserAgent->new;
-    $lwp->default_header(Authorization => $self->auth_token);
+    my $loop = IO::Async::Loop->new();
+    my $http = Net::Async::HTTP->new();
+    $loop->add( $http );
+    $http->headers({ Authorization => $self->auth_token });
 
-    return $lwp;
+    return $http;
   },
 );
 
