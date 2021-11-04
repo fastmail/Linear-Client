@@ -38,7 +38,7 @@ async sub do_list {
     printf "%10s - %s\n", $node->{identifier}, $node->{title};
   }
 
-  return Future->done;
+  return;
 }
 
 await do_list;

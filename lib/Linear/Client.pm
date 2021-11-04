@@ -5,6 +5,7 @@ package Linear::Client;
 use Moose;
 
 use Cpanel::JSON::XS;
+use Future::AsyncAwait;
 use LWP::UserAgent;
 use Net::Async::HTTP;
 use IO::Async::Loop;
@@ -55,8 +56,8 @@ sub plan_from_input ($self, $input) {
   return \%task;
 }
 
-sub get_authenticated_userId ($self) {
-  my $user = $self->do_query(q[
+async sub get_authenticated_userId ($self) {
+  my $user = await $self->do_query(q[
     query Me {
       viewer {
         id
@@ -64,12 +65,10 @@ sub get_authenticated_userId ($self) {
     }
   ]);
 
-  return $user->then(sub ($struct) {
-    $struct->{data}{viewer}{id}
-  });
+  return $user->{data}{viewer}{id};
 }
 
-sub do_query {
+async sub do_query {
   my ($self, $query, $variables, $arg) = @_;
   $arg //= {};
 
@@ -79,7 +78,7 @@ sub do_query {
     $variables->{$_} //= $actor_id for $arg->{actor_id_as}->@*;
   }
 
-  my $res_f = $self->_http->do_request(
+  my $res = await $self->_http->do_request(
     method => 'POST',
     uri    => $self->api_url,
     content_type => 'application/json',
@@ -89,20 +88,16 @@ sub do_query {
     },
   );
 
-  $res_f->then(sub ($res) {
-    return Future->fail('Linear API failure', res => $res->as_string)
-      unless $res->is_success;
+  return Future->fail('Linear API failure', res => $res->as_string)
+    unless $res->is_success;
 
-    return Future->done(
-      decode_json($res->decoded_content(charset => undef))
-    );
-  });
+  return decode_json($res->decoded_content(charset => undef))
 }
 
-sub create_issue ($self, $input) {
+async sub create_issue ($self, $input) {
   my $plan = $self->plan_from_input($input);
   # do mutation with values from the plan
-  $self->do_query(
+  await $self->do_query(
     q[
       mutation IssueCreate (
         $assigneeId: String,
