@@ -3,10 +3,27 @@ use v5.34.0;
 use warnings;
 
 use lib 'lib';
+
 use Linear;
 
 binmode STDOUT, ":utf8";
 
 $Linear::AUTH = $ENV{LINEAR_AUTH} // die "no LINEAR_AUTH env var set!\n";
 
-Linear::create_issue("++ eat more scrapple");
+# Linear::create_issue("++ eat more scrapple");
+my $authenticated_user = Linear::get_authenticated_userId();
+
+my $res = Linear::do_query(qq[
+query {
+  issues(filter: { assignee: { id: { eq: "$authenticated_user" } } }) {
+    nodes {
+      identifier
+      title
+    }
+  }
+}
+]);
+
+for my $node ($res->{data}{issues}{nodes}->@*) {
+  printf "%10s - %s\n", $node->{identifier}, $node->{title};
+}
