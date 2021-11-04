@@ -8,12 +8,16 @@ use Linear::Client;
 
 binmode STDOUT, ":utf8";
 
-$Linear::Client::AUTH = $ENV{LINEAR_AUTH} // die "no LINEAR_AUTH env var set!\n";
+my $auth = $ENV{LINEAR_AUTH} // die "no LINEAR_AUTH env var set!\n";
 
-# Linear::Client::create_issue("++ eat more scrapple");
-my $authenticated_user = Linear::Client::get_authenticated_userId();
+my $client = Linear::Client->new({
+  auth_token => $auth,
+});
 
-my $res = Linear::Client::do_query(qq[
+# $client->create_issue("++ eat more scrapple");
+my $authenticated_user = $client->get_authenticated_userId();
+
+my $res = $client->do_query(qq[
 query {
   issues(filter: { assignee: { id: { eq: "$authenticated_user" } } }) {
     nodes {
