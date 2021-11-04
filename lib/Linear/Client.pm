@@ -4,7 +4,6 @@ use warnings;
 package Linear::Client;
 use Moose;
 
-use Future::AsyncAwait;
 use Cpanel::JSON::XS;
 use LWP::UserAgent;
 use Net::Async::HTTP;
@@ -29,7 +28,6 @@ has _http => (
     my $loop = IO::Async::Loop->new();
     my $http = Net::Async::HTTP->new();
     $loop->add( $http );
-    $http->headers({ Authorization => $self->auth_token });
 
     return $http;
   },
@@ -55,7 +53,7 @@ sub plan_from_input ($self, $input) {
   $task{title} = $title;
 
   return \%task;
-};
+}
 
 sub get_authenticated_userId ($self) {
   my $user = $self->do_query(q[
@@ -65,8 +63,11 @@ sub get_authenticated_userId ($self) {
       }
     }
   ]);
-  return $user->{data}{viewer}{id};
-};
+
+  return $user->then(sub ($struct) {
+    $struct->{data}{viewer}{id}
+  });
+}
 
 sub do_query {
   my ($self, $query, $variables, $arg) = @_;
@@ -78,15 +79,24 @@ sub do_query {
     $variables->{$_} //= $actor_id for $arg->{actor_id_as}->@*;
   }
 
-  my $res = $self->_lwp->post(
-    $self->api_url,
-    'Content-Type' => 'application/json',
-    Content => encode_json({ query => $query, variables => $variables }),
+  my $res_f = $self->_http->do_request(
+    method => 'POST',
+    uri    => $self->api_url,
+    content_type => 'application/json',
+    content      => encode_json({ query => $query, variables => $variables }),
+    headers => {
+      Authorization => $self->auth_token,
+    },
   );
 
-  die $res->as_string unless $res->is_success;
+  $res_f->then(sub ($res) {
+    return Future->fail('Linear API failure', res => $res->as_string)
+      unless $res->is_success;
 
-  return decode_json($res->decoded_content(charset => undef));
+    return Future->done(
+      decode_json($res->decoded_content(charset => undef))
+    );
+  });
 }
 
 sub create_issue ($self, $input) {
