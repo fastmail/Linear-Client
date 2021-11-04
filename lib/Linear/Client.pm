@@ -1,7 +1,7 @@
 use v5.34.0;
 use warnings;
 
-package Linear;
+package Linear::Client;
 
 use Cpanel::JSON::XS;
 use LWP::UserAgent;
