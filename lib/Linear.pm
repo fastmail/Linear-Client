@@ -53,8 +53,7 @@ sub get_authenticated_userId {
       }
     }
   ]);
-  my $decoded = decode_json($user);
-  return $decoded->{'data'}{'viewer'}{'id'};
+  return $user->{'data'}{'viewer'}{'id'};
 };
 
 sub do_query {
@@ -72,13 +71,11 @@ sub do_query {
     'Content-Type' => 'application/json',
     Content => encode_json({ query => $query, variables => $variables }),
   );
-  warn "<<<" . $res->request->as_string . "\n>>>\n";;
 
   die $res->as_string unless $res->is_success;
 
-  warn  $JSON->encode(decode_json($res->content));
-  return $JSON->encode(decode_json($res->content));
-};
+  return decode_json($res->decoded_content(charset => undef));
+}
 
 sub create_issue ($input) {
   my $plan = plan_from_input($input);
@@ -112,6 +109,6 @@ sub create_issue ($input) {
     $plan,
     { actor_id_as => [ qw(assigneeId) ] },
   );
-};
+}
 
 1;
