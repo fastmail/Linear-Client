@@ -34,25 +34,29 @@ has _http => (
   },
 );
 
-sub plan_from_input ($self, $input) {
-  # if ++ assign to me, which we get through query ME
-  # regex it so that whatever is after the ! is the team
+async sub _teamId_from_name($self, $input) {
+    my $teams = await $self->get_teams();
+    use Data::Dumper;
+    for (@$teams) {
+        if($_->{name} =~ $input) {
+            return $_->{id};
+        };
+    };
+    say "We don't have a $input team here";
+}
+
+sub _plan_from_input ($self, $input) {
   my %task = (
     description => q{},
-    teamId => 'c4196244-4381-498b-ae0b-9288fc459cdd',
   );
-  #my %task = {
-  #  title => $title
-  #  description => $description
-  #  assigneeId => $assignee
-  #  team => $teamId
-  #  state => $stateId
-  #};
 
-  # grab everything before ! and set it to $title
-  my ($title, $team_name) = split /!/, $input, 2;
+  my ($operator, $title, $team_name) = split /\++|>>|\@/, $input, 3;
   $task{title} = $title;
-
+  if ($team_name) {
+      $task{teamId} = $self->_teamId_from_name($team_name)->get;
+  } else {
+      $task{teamId} = 'c4196244-4381-498b-ae0b-9288fc459cdd';
+  };
   return \%task;
 }
 
@@ -73,8 +77,7 @@ async sub do_query {
   $arg //= {};
 
   if ($arg->{actor_id_as}) {
-    my $actor_id = $self->get_authenticated_userId();
-
+    my $actor_id = await $self->get_authenticated_userId();
     $variables->{$_} //= $actor_id for $arg->{actor_id_as}->@*;
   }
 
@@ -95,7 +98,7 @@ async sub do_query {
 }
 
 async sub create_issue ($self, $input) {
-  my $plan = $self->plan_from_input($input);
+  my $plan = $self->_plan_from_input($input);
   await $self->do_query(
     q[
       mutation IssueCreate (
@@ -125,7 +128,7 @@ async sub create_issue ($self, $input) {
     $plan,
     { actor_id_as => [ qw(assigneeId) ] },
   );
-}
+};
 
 async sub get_teams ($self) {
   my $teams = await $self->do_query(q[
@@ -139,10 +142,11 @@ async sub get_teams ($self) {
     }
   ]);
 
-  return $teams;
-}
-
+  return $teams->{data}{teams}{nodes};
+};
 
 
 no Moose;
 1;
+
+
