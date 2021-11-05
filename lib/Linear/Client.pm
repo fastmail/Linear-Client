@@ -96,7 +96,6 @@ async sub do_query {
 
 async sub create_issue ($self, $input) {
   my $plan = $self->plan_from_input($input);
-  # do mutation with values from the plan
   await $self->do_query(
     q[
       mutation IssueCreate (
@@ -127,6 +126,23 @@ async sub create_issue ($self, $input) {
     { actor_id_as => [ qw(assigneeId) ] },
   );
 }
+
+async sub get_teams ($self) {
+  my $teams = await $self->do_query(q[
+    query Teams {
+      teams {
+        nodes {
+          id
+          name
+        }
+      }
+    }
+  ]);
+
+  return $teams;
+}
+
+
 
 no Moose;
 1;
