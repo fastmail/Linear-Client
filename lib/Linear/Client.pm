@@ -23,8 +23,8 @@ has auth_token => (
 );
 
 has _http => (
-  is   => 'ro',
-  lazy => 1,
+  is      => 'ro',
+  lazy    => 1,
   default => sub ($self, @) {
     my $loop = IO::Async::Loop->new();
     my $http = Net::Async::HTTP->new();
@@ -32,6 +32,34 @@ has _http => (
 
     return $http;
   },
+);
+
+# instead of calling get_teams every time, we can use the team_cache instead.
+# when we want a specific team, we can check if the cached_at time is expired, and if it is, then do the query
+# if it isn't, then we can just resolve the future in the cache
+# QUESTIONS:
+#   - if we do $client->team_cache, that will return a hash that contains a future ($teams_f). How do we resolve the future when we need it (i.e. when the cache time is expired)?
+#   - why can't we just check if the team we want is in the cache and if not, do the query and check again?
+#   - isn't the query done every time we do $client->team_cache?
+has team_cache => (
+  is      => 'ro',
+  lazy    => 1,
+  default => sub ($self) {
+    my $teams_f = $self->do_query(q[
+      query Teams {
+        teams {
+          nodes {
+            id
+            name
+          }
+        }
+      }
+    ]);
+    return {
+      cached_at => time,
+      cache     => $teams_f,
+    }
+  }
 );
 
 async sub _teamId_from_name($self, $input) {
