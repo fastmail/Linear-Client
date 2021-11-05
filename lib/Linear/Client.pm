@@ -5,8 +5,10 @@ package Linear::Client;
 use Moose;
 
 use Cpanel::JSON::XS;
+use Future::AsyncAwait;
 use LWP::UserAgent;
-
+use Net::Async::HTTP;
+use IO::Async::Loop;
 use experimental 'signatures';
 
 has api_url => (
@@ -20,14 +22,15 @@ has auth_token => (
   required => 1,
 );
 
-has _lwp => (
+has _http => (
   is   => 'ro',
   lazy => 1,
   default => sub ($self, @) {
-    my $lwp = LWP::UserAgent->new;
-    $lwp->default_header(Authorization => $self->auth_token);
+    my $loop = IO::Async::Loop->new();
+    my $http = Net::Async::HTTP->new();
+    $loop->add( $http );
 
-    return $lwp;
+    return $http;
   },
 );
 
@@ -51,20 +54,21 @@ sub plan_from_input ($self, $input) {
   $task{title} = $title;
 
   return \%task;
-};
+}
 
-sub get_authenticated_userId ($self) {
-  my $user = $self->do_query(q[
+async sub get_authenticated_userId ($self) {
+  my $user = await $self->do_query(q[
     query Me {
       viewer {
         id
       }
     }
   ]);
-  return $user->{data}{viewer}{id};
-};
 
-sub do_query {
+  return $user->{data}{viewer}{id};
+}
+
+async sub do_query {
   my ($self, $query, $variables, $arg) = @_;
   $arg //= {};
 
@@ -74,21 +78,26 @@ sub do_query {
     $variables->{$_} //= $actor_id for $arg->{actor_id_as}->@*;
   }
 
-  my $res = $self->_lwp->post(
-    $self->api_url,
-    'Content-Type' => 'application/json',
-    Content => encode_json({ query => $query, variables => $variables }),
+  my $res = await $self->_http->do_request(
+    method => 'POST',
+    uri    => $self->api_url,
+    content_type => 'application/json',
+    content      => encode_json({ query => $query, variables => $variables }),
+    headers => {
+      Authorization => $self->auth_token,
+    },
   );
 
-  die $res->as_string unless $res->is_success;
+  return Future->fail('Linear API failure', res => $res->as_string)
+    unless $res->is_success;
 
-  return decode_json($res->decoded_content(charset => undef));
+  return decode_json($res->decoded_content(charset => undef))
 }
 
-sub create_issue ($self, $input) {
+async sub create_issue ($self, $input) {
   my $plan = $self->plan_from_input($input);
   # do mutation with values from the plan
-  $self->do_query(
+  await $self->do_query(
     q[
       mutation IssueCreate (
         $assigneeId: String,

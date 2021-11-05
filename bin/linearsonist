@@ -2,6 +2,10 @@
 use v5.34.0;
 use warnings;
 
+use experimental 'signatures';
+
+use Future::AsyncAwait;
+
 use lib 'lib';
 
 use Linear::Client;
@@ -15,19 +19,26 @@ my $client = Linear::Client->new({
 });
 
 # $client->create_issue("++ eat more scrapple");
-my $authenticated_user = $client->get_authenticated_userId();
 
-my $res = $client->do_query(qq[
-query {
-  issues(filter: { assignee: { id: { eq: "$authenticated_user" } } }) {
-    nodes {
-      identifier
-      title
+async sub do_list {
+  my $user_id = await $client->get_authenticated_userId;
+  my $query_result = await $client->do_query(<<~"END"
+    query {
+      issues(filter: { assignee: { id: { eq: "$user_id" } } }) {
+        nodes {
+          identifier
+          title
+        }
+      }
     }
-  }
-}
-]);
+    END
+  );
 
-for my $node ($res->{data}{issues}{nodes}->@*) {
-  printf "%10s - %s\n", $node->{identifier}, $node->{title};
+  for my $node ($query_result->{data}{issues}{nodes}->@*) {
+    printf "%10s - %s\n", $node->{identifier}, $node->{title};
+  }
+
+  return;
 }
+
+await do_list;
