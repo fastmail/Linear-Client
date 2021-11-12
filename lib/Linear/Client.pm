@@ -120,19 +120,68 @@ cached_attr user => (
   },
 );
 
-sub _plan_from_input ($self, $input) {
-  my %task = (
+has default_team_id => (
+  is => 'ro',
+);
+
+async sub plan_from_input ($self, $input) {
+  my %issue = (
     description => q{},
   );
 
-  my ($operator, $title, $team_name) = split /\++|>>|\@/, $input, 3;
-  $task{title} = $title;
-  if ($team_name) {
-    $task{teamId} = $self->_teamId_from_name($team_name)->get;
+  my $assignee_id;
+  my $team_id;
+  my $issue_name;
+
+  # ++ foo bar baz
+  # >> user foo bar baz
+  # >> user@team foo bar baz
+  # >> team foo bar baz  <--- left unimplemented for now
+
+  $input =~ s/\A\s+//; # Trim leading whitespace just in case.
+
+  if ($input =~ s/\A\+\+\s+//) {
+    $assignee_id = await $self->get_authenticated_userId;
+    $issue_name = $input;
+  } elsif ($input =~ s/\A>>\s+//) {
+    (my $target, $input) = split /\s+/, $input, 2;
+
+    my $username;
+    my $teamname;
+
+    if ($target =~ /@/) {
+      ($username, $teamname) = split /@/, $target, 2;
+    } else {
+      $username = $target;
+    }
+
+    my $user = await $self->lookup_user($username);
+    die "can't find user for $username" unless $user;
+
+    $assignee_id = $user->{id};
+
+    if ($teamname) {
+      my $team_obj = await $self->lookup_team($teamname);
+      die "can't find team for $teamname" unless $team_obj;
+      $team_id = $team_obj->{id};
+    }
+
+    $issue_name = $input;
   } else {
-    $task{teamId} = 'c4196244-4381-498b-ae0b-9288fc459cdd';
-  };
-  return \%task;
+    Carp::confess("no ++ no >> no plan");
+  }
+
+  $team_id //= $self->default_team_id;
+
+  unless ($team_id) {
+    Carp::confess("can't create plan without team id");
+  }
+
+  $issue{title}  = $issue_name;
+  $issue{teamId} = $team_id;
+  $issue{assigneeId} = $assignee_id;
+
+  return \%issue;
 }
 
 async sub get_authenticated_userId ($self) {
@@ -172,8 +221,7 @@ async sub do_query {
   return decode_json($res->decoded_content(charset => undef))
 }
 
-async sub create_issue ($self, $input) {
-  my $plan = $self->_plan_from_input($input);
+async sub create_issue ($self, $plan) {
   await $self->do_query(
     q[
       mutation IssueCreate (
@@ -203,7 +251,7 @@ async sub create_issue ($self, $input) {
     $plan,
     { actor_id_as => [ qw(assigneeId) ] },
   );
-};
+}
 
 no Moose;
 1;

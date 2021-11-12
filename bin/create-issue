@@ -1,0 +1,26 @@
+#!perl
+use v5.34.0;
+use warnings;
+
+use experimental 'signatures';
+
+use Future::AsyncAwait;
+
+use lib 'lib';
+
+use Linear::Client;
+
+binmode STDOUT, ":utf8";
+
+my $auth = $ENV{LINEAR_AUTH} // die "no LINEAR_AUTH env var set!\n";
+
+my $client = Linear::Client->new({
+  auth_token => $auth,
+  default_team_id => 'c4196244-4381-498b-ae0b-9288fc459cdd',
+});
+
+my $plan = await $client->plan_from_input("++ rjbs is so cool");
+my $res  = await $client->create_issue($plan);
+
+use Data::Dumper;
+warn Dumper($res);
