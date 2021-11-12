@@ -43,6 +43,7 @@ my sub cached_attr ($name, %arg) {
 
   my $cache_attr_name = "_$name\_cache";
   my $clearer_name    = "_clear_$cache_attr_name";
+  my $plural          = $arg{plural} // "${name}s";
 
   has $cache_attr_name => (
     is      => 'ro',
@@ -51,13 +52,15 @@ my sub cached_attr ($name, %arg) {
     default => sub ($self) {
       return {
         cached_at => time,
+        # We should allow the query to be a sub that generates things based on
+        # client properties, but for now... whatever. -- rjbs, 2021-11-12
         value     => $self->do_query($query)->then($xform),
       }
     }
   );
 
   Sub::Install::install_sub({
-    as    => $arg{plural} // "${name}s",
+    as    => $plural,
     code  => async sub ($self) {
       my $cache = $self->$cache_attr_name;
 
@@ -76,15 +79,13 @@ my sub cached_attr ($name, %arg) {
   Sub::Install::install_sub({
     as    => "lookup_$name",
     code  => async sub ($self, $key) {
-      my $dict = await $self->$name;
+      my $dict = await $self->$plural;
       return $dict->{ $key };
     }
   });
 }
 
 cached_attr team => (
-  # We should allow the query to be a sub that generates things based on client
-  # properties, but for now... whatever. -- rjbs, 2021-11-12
   query => q[
     query Teams {
       teams { nodes { id key name } }
@@ -92,8 +93,30 @@ cached_attr team => (
   ],
   xform => sub ($res) {
     return {
-       map {; lc $_->{key} => $_ } $res->{data}{teams}{nodes}->@*
+      map {; lc $_->{key} => $_ } $res->{data}{teams}{nodes}->@*
     };
+  },
+);
+
+cached_attr user => (
+  query => q[
+    query User {
+      users { nodes { id displayName name } }
+    }
+  ],
+  xform => sub ($res) {
+    my $dict = {};
+
+    NODE: for my $node ($res->{data}{users}{nodes}->@*) {
+      unless ($node->{displayName}) {
+        warn "no display name for $node->{name} // $node->{id}!\n";
+        next NODE;
+      }
+
+      $dict->{ lc $node->{displayName} } = $node;
+    }
+
+    return $dict;
   },
 );
 
