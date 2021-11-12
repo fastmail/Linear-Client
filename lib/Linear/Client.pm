@@ -34,43 +34,46 @@ has _http => (
   },
 );
 
-# instead of calling get_teams every time, we can use the team_cache instead.
-# when we want a specific team, we can check if the cached_at time is expired, and if it is, then do the query
-# if it isn't, then we can just resolve the future in the cache
-# QUESTIONS:
-#   - if we do $client->team_cache, that will return a hash that contains a future ($teams_f). How do we resolve the future when we need it (i.e. when the cache time is expired)?
-#   - why can't we just check if the team we want is in the cache and if not, do the query and check again?
-#   - isn't the query done every time we do $client->team_cache?
-has team_cache => (
+has _team_cache => (
   is      => 'ro',
   lazy    => 1,
+  clearer => '_clear_team_cache',
   default => sub ($self) {
     my $teams_f = $self->do_query(q[
       query Teams {
-        teams {
-          nodes {
-            id
-            name
-          }
-        }
+        teams { nodes { id key name } }
       }
     ]);
+
     return {
       cached_at => time,
-      cache     => $teams_f,
+      value     => $teams_f->then(sub ($res) {
+        Future->done({
+           map {; lc $_->{key} => $_ } $res->{data}{teams}{nodes}->@*;
+        });
+      }),
     }
   }
 );
 
-async sub _teamId_from_name($self, $input) {
-    my $teams = await $self->get_teams();
-    use Data::Dumper;
-    for (@$teams) {
-        if($_->{name} =~ $input) {
-            return $_->{id};
-        };
-    };
-    say "We don't have a $input team here";
+async sub teams ($self) {
+  my $cache = $self->_team_cache;
+
+  return await $cache->{value} if time - $cache->{cached_at} < 300
+                               && ! $cache->{value}->is_failed
+                               && ! $cache->{value}->is_cancelled;
+
+  # The value in the cache was no good. Failed, old, I dunno.  Let's clear it
+  # and try again. -- rjbs, 2021-11-12
+
+  $self->_clear_team_cache;
+  return await $self->_team_cache->{value};
+}
+
+async sub team_for_key ($self, $team_key) {
+  my $teams = await $self->teams;
+
+  return $teams->{ $team_key };
 }
 
 sub _plan_from_input ($self, $input) {
@@ -81,9 +84,9 @@ sub _plan_from_input ($self, $input) {
   my ($operator, $title, $team_name) = split /\++|>>|\@/, $input, 3;
   $task{title} = $title;
   if ($team_name) {
-      $task{teamId} = $self->_teamId_from_name($team_name)->get;
+    $task{teamId} = $self->_teamId_from_name($team_name)->get;
   } else {
-      $task{teamId} = 'c4196244-4381-498b-ae0b-9288fc459cdd';
+    $task{teamId} = 'c4196244-4381-498b-ae0b-9288fc459cdd';
   };
   return \%task;
 }
@@ -158,23 +161,5 @@ async sub create_issue ($self, $input) {
   );
 };
 
-async sub get_teams ($self) {
-  my $teams = await $self->do_query(q[
-    query Teams {
-      teams {
-        nodes {
-          id
-          name
-        }
-      }
-    }
-  ]);
-
-  return $teams->{data}{teams}{nodes};
-};
-
-
 no Moose;
 1;
-
-
