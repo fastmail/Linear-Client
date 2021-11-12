@@ -20,7 +20,7 @@ my $client = Linear::Client->new({
 
 async sub get_team {
   my ($key) = @_;
-  my $team = await $client->team_for_key($key);
+  my $team = await $client->lookup_team($key);
 
   if ($team) {
     say "$team->{id} $team->{name}";

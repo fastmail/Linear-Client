@@ -34,47 +34,68 @@ has _http => (
   },
 );
 
-has _team_cache => (
-  is      => 'ro',
-  lazy    => 1,
-  clearer => '_clear_team_cache',
-  default => sub ($self) {
-    my $teams_f = $self->do_query(q[
-      query Teams {
-        teams { nodes { id key name } }
+my sub cached_attr ($name, %arg) {
+  my $query = $arg{query};
+  Carp::confess("no query given") unless $query;
+
+  my $xform = $arg{xform};
+  Carp::confess("no xform given") unless $xform;
+
+  my $cache_attr_name = "_$name\_cache";
+  my $clearer_name    = "_clear_$cache_attr_name";
+
+  has $cache_attr_name => (
+    is      => 'ro',
+    lazy    => 1,
+    clearer => $clearer_name,
+    default => sub ($self) {
+      return {
+        cached_at => time,
+        value     => $self->do_query($query)->then($xform),
       }
-    ]);
-
-    return {
-      cached_at => time,
-      value     => $teams_f->then(sub ($res) {
-        Future->done({
-           map {; lc $_->{key} => $_ } $res->{data}{teams}{nodes}->@*;
-        });
-      }),
     }
-  }
+  );
+
+  Sub::Install::install_sub({
+    as    => $arg{plural} // "${name}s",
+    code  => async sub ($self) {
+      my $cache = $self->$cache_attr_name;
+
+      return await $cache->{value} if time - $cache->{cached_at} < 300
+                                   && ! $cache->{value}->is_failed
+                                   && ! $cache->{value}->is_cancelled;
+
+      # The value in the cache was no good. Failed, old, I dunno.  Let's clear
+      # it and try again. -- rjbs, 2021-11-12
+
+      $self->$clearer_name;
+      return await $self->$cache_attr_name->{value};
+    },
+  });
+
+  Sub::Install::install_sub({
+    as    => "lookup_$name",
+    code  => async sub ($self, $key) {
+      my $dict = await $self->$name;
+      return $dict->{ $key };
+    }
+  });
+}
+
+cached_attr team => (
+  # We should allow the query to be a sub that generates things based on client
+  # properties, but for now... whatever. -- rjbs, 2021-11-12
+  query => q[
+    query Teams {
+      teams { nodes { id key name } }
+    }
+  ],
+  xform => sub ($res) {
+    return {
+       map {; lc $_->{key} => $_ } $res->{data}{teams}{nodes}->@*
+    };
+  },
 );
-
-async sub teams ($self) {
-  my $cache = $self->_team_cache;
-
-  return await $cache->{value} if time - $cache->{cached_at} < 300
-                               && ! $cache->{value}->is_failed
-                               && ! $cache->{value}->is_cancelled;
-
-  # The value in the cache was no good. Failed, old, I dunno.  Let's clear it
-  # and try again. -- rjbs, 2021-11-12
-
-  $self->_clear_team_cache;
-  return await $self->_team_cache->{value};
-}
-
-async sub team_for_key ($self, $team_key) {
-  my $teams = await $self->teams;
-
-  return $teams->{ $team_key };
-}
 
 sub _plan_from_input ($self, $input) {
   my %task = (
