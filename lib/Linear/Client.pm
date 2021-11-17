@@ -133,6 +133,10 @@ async sub plan_from_input ($self, $input) {
   my $team_id;
   my $issue_name;
 
+	# We probably should not declare these variables unless we need them..
+	my $username;
+	my $teamname;
+
   # ++ foo bar baz
   # >> user foo bar baz
   # >> user@team foo bar baz
@@ -140,36 +144,31 @@ async sub plan_from_input ($self, $input) {
 
   $input =~ s/\A\s+//; # Trim leading whitespace just in case.
 
-  if ($input =~ s/\A\+\+\s+//) {
-    $assignee_id = await $self->get_authenticated_userId;
-    $issue_name = $input;
-  } elsif ($input =~ s/\A>>\s+//) {
-    (my $target, $input) = split /\s+/, $input, 2;
+  my ($operator, $target, $input) = split /\s+/, $input, 3;
 
-    my $username;
-    my $teamname;
-
-    if ($target =~ /@/) {
-      ($username, $teamname) = split /@/, $target, 2;
-    } else {
-      $username = $target;
-    }
-
-    my $user = await $self->lookup_user($username);
-    die "can't find user for $username" unless $user;
-
-    $assignee_id = $user->{id};
-
-    if ($teamname) {
-      my $team_obj = await $self->lookup_team($teamname);
-      die "can't find team for $teamname" unless $team_obj;
-      $team_id = $team_obj->{id};
-    }
-
-    $issue_name = $input;
+  if ($target =~ /@/) {
+    ($username, $teamname) = split /@/, $target, 2;
   } else {
-    Carp::confess("no ++ no >> no plan");
+    $username = $target;
+	}
+
+  if ($operator eq "++") {
+    $assignee_id = await $self->get_authenticated_userId;
+	} elsif ($operator eq ">>"){
+	  my $user = await $self->lookup_user($username);
+	  die "can't find user for $username" unless $user;
+	  $assignee_id = $user->{id};
+   } else {
+     Carp::confess("no ++ no >> no plan");
+	 }
+
+  if ($teamname) {
+    my $team_obj = await $self->lookup_team($teamname);
+    die "can't find team for $teamname" unless $team_obj;
+    $team_id = $team_obj->{id};
   }
+
+  $issue_name = $input;
 
   $team_id //= $self->default_team_id;
 
@@ -183,6 +182,7 @@ async sub plan_from_input ($self, $input) {
 
   return \%issue;
 }
+
 
 async sub get_authenticated_userId ($self) {
   my $user = await $self->do_query(q[
