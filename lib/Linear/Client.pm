@@ -127,6 +127,7 @@ has default_team_id => (
 async sub plan_from_input ($self, $input) {
   my %issue = (
     description => q{},
+    priority => 0,
   );
 
   my $assignee_id;
@@ -144,7 +145,7 @@ async sub plan_from_input ($self, $input) {
 
   $input =~ s/\A\s+//; # Trim leading whitespace just in case.
 
-  my ($operator, $target, $input) = split /\s+/, $input, 3;
+  my ($operator, $target, $rest) = split /\s+/, $input, 3;
 
   if ($target =~ /@/) {
     ($username, $teamname) = split /@/, $target, 2;
@@ -168,7 +169,12 @@ async sub plan_from_input ($self, $input) {
     $team_id = $team_obj->{id};
   }
 
-  $issue_name = $input;
+  if($rest =~ /\(!\)/) {
+    $rest =~ s/\(!\)//; # Remove the (!) from the $rest string
+    $issue{priority} = 1;
+  }
+
+  $issue_name = $rest;
 
   $team_id //= $self->default_team_id;
 
@@ -229,6 +235,7 @@ async sub create_issue ($self, $plan) {
         $title: String!,
         $description: String,
         $teamId: String!,
+        $priority: Int,
       ) {
         issueCreate (
           input: {
@@ -236,6 +243,7 @@ async sub create_issue ($self, $plan) {
             title: $title
             description: $description
             teamId: $teamId
+            priority: $priority
           }
         ) {
           success
@@ -244,6 +252,7 @@ async sub create_issue ($self, $plan) {
             identifier
             title
             team { id name }
+            priority
           }
         }
       }

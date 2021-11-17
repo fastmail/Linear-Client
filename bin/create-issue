@@ -19,7 +19,7 @@ my $client = Linear::Client->new({
   default_team_id => 'c4196244-4381-498b-ae0b-9288fc459cdd',
 });
 
-my $plan = await $client->plan_from_input('>> rjbs@plumb is so cool');
+my $plan = await $client->plan_from_input('>> rasha@plumb eat all the hummus (!)');
 my $res  = await $client->create_issue($plan);
 
 use Data::Dumper;
