@@ -1,0 +1,51 @@
+#!perl
+use v5.34.0;
+use warnings;
+
+use experimental 'signatures';
+
+use Future::AsyncAwait;
+
+use lib 'lib';
+
+use Linear::Client;
+
+binmode STDOUT, ":utf8";
+
+my $auth = $ENV{LINEAR_AUTH} // die "no LINEAR_AUTH env var set!\n";
+
+my $client = Linear::Client->new({
+  auth_token => $auth,
+});
+
+async sub get_team {
+  my ($key) = @_;
+  my $team = await $client->lookup_team($key);
+
+  if ($team) {
+    say "$team->{id} $team->{name}";
+  } else {
+    say "No such team.";
+  }
+}
+
+async sub list_teams {
+  my $teams = await $client->teams;
+
+  for my $team_key (sort keys %$teams) {
+    printf "%-12s - %s - %s\n",
+      $team_key,
+      $teams->{$team_key}{id},
+      $teams->{$team_key}{name};
+  }
+
+  return;
+}
+
+if (@ARGV == 1) {
+  await get_team($ARGV[0]);
+} elsif (@ARGV) {
+  die "too many arguments!\n";
+} else {
+  await list_teams;
+}

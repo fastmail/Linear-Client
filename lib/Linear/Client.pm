@@ -23,8 +23,8 @@ has auth_token => (
 );
 
 has _http => (
-  is   => 'ro',
-  lazy => 1,
+  is      => 'ro',
+  lazy    => 1,
   default => sub ($self, @) {
     my $loop = IO::Async::Loop->new();
     my $http = Net::Async::HTTP->new();
@@ -34,26 +34,154 @@ has _http => (
   },
 );
 
-sub plan_from_input ($self, $input) {
-  # if ++ assign to me, which we get through query ME
-  # regex it so that whatever is after the ! is the team
-  my %task = (
-    description => q{},
-    teamId => 'c4196244-4381-498b-ae0b-9288fc459cdd',
+my sub cached_attr ($name, %arg) {
+  my $query = $arg{query};
+  Carp::confess("no query given") unless $query;
+
+  my $xform = $arg{xform};
+  Carp::confess("no xform given") unless $xform;
+
+  my $cache_attr_name = "_$name\_cache";
+  my $clearer_name    = "_clear_$cache_attr_name";
+  my $plural          = $arg{plural} // "${name}s";
+
+  has $cache_attr_name => (
+    is      => 'ro',
+    lazy    => 1,
+    clearer => $clearer_name,
+    default => sub ($self) {
+      return {
+        cached_at => time,
+        # We should allow the query to be a sub that generates things based on
+        # client properties, but for now... whatever. -- rjbs, 2021-11-12
+        value     => $self->do_query($query)->then($xform),
+      }
+    }
   );
-  #my %task = {
-  #  title => $title
-  #  description => $description
-  #  assigneeId => $assignee
-  #  team => $teamId
-  #  state => $stateId
-  #};
 
-  # grab everything before ! and set it to $title
-  my ($title, $team_name) = split /!/, $input, 2;
-  $task{title} = $title;
+  Sub::Install::install_sub({
+    as    => $plural,
+    code  => async sub ($self) {
+      my $cache = $self->$cache_attr_name;
 
-  return \%task;
+      return await $cache->{value} if time - $cache->{cached_at} < 300
+                                   && ! $cache->{value}->is_failed
+                                   && ! $cache->{value}->is_cancelled;
+
+      # The value in the cache was no good. Failed, old, I dunno.  Let's clear
+      # it and try again. -- rjbs, 2021-11-12
+
+      $self->$clearer_name;
+      return await $self->$cache_attr_name->{value};
+    },
+  });
+
+  Sub::Install::install_sub({
+    as    => "lookup_$name",
+    code  => async sub ($self, $key) {
+      my $dict = await $self->$plural;
+      return $dict->{ $key };
+    }
+  });
+}
+
+cached_attr team => (
+  query => q[
+    query Teams {
+      teams { nodes { id key name } }
+    }
+  ],
+  xform => sub ($res) {
+    return {
+      map {; lc $_->{key} => $_ } $res->{data}{teams}{nodes}->@*
+    };
+  },
+);
+
+cached_attr user => (
+  query => q[
+    query User {
+      users { nodes { id displayName name } }
+    }
+  ],
+  xform => sub ($res) {
+    my $dict = {};
+
+    NODE: for my $node ($res->{data}{users}{nodes}->@*) {
+      unless ($node->{displayName}) {
+        warn "no display name for $node->{name} // $node->{id}!\n";
+        next NODE;
+      }
+
+      $dict->{ lc $node->{displayName} } = $node;
+    }
+
+    return $dict;
+  },
+);
+
+has default_team_id => (
+  is => 'ro',
+);
+
+async sub plan_from_input ($self, $input) {
+  my %issue = (
+    description => q{},
+  );
+
+  my $assignee_id;
+  my $team_id;
+  my $issue_name;
+
+  # ++ foo bar baz
+  # >> user foo bar baz
+  # >> user@team foo bar baz
+  # >> team foo bar baz  <--- left unimplemented for now
+
+  $input =~ s/\A\s+//; # Trim leading whitespace just in case.
+
+  if ($input =~ s/\A\+\+\s+//) {
+    $assignee_id = await $self->get_authenticated_userId;
+    $issue_name = $input;
+  } elsif ($input =~ s/\A>>\s+//) {
+    (my $target, $input) = split /\s+/, $input, 2;
+
+    my $username;
+    my $teamname;
+
+    if ($target =~ /@/) {
+      ($username, $teamname) = split /@/, $target, 2;
+    } else {
+      $username = $target;
+    }
+
+    my $user = await $self->lookup_user($username);
+    die "can't find user for $username" unless $user;
+
+    $assignee_id = $user->{id};
+
+    if ($teamname) {
+      my $team_obj = await $self->lookup_team($teamname);
+      die "can't find team for $teamname" unless $team_obj;
+      $team_id = $team_obj->{id};
+    }
+
+    $issue_name = $input;
+  } else {
+    Carp::confess("no ++ no >> no plan");
+  }
+
+  $team_id //= $self->default_team_id;
+
+  unless ($team_id) {
+    Carp::confess("can't create plan without team id");
+  }
+
+  $issue{title}  = $issue_name;
+  $issue{teamId} = $team_id;
+  $issue{assigneeId} = $assignee_id;
+
+  return \%issue;
 }
 
 async sub get_authenticated_userId ($self) {
@@ -73,8 +201,7 @@ async sub do_query {
   $arg //= {};
 
   if ($arg->{actor_id_as}) {
-    my $actor_id = $self->get_authenticated_userId();
-
+    my $actor_id = await $self->get_authenticated_userId();
     $variables->{$_} //= $actor_id for $arg->{actor_id_as}->@*;
   }
 
@@ -94,9 +221,7 @@ async sub do_query {
   return decode_json($res->decoded_content(charset => undef))
 }
 
-async sub create_issue ($self, $input) {
-  my $plan = $self->plan_from_input($input);
-  # do mutation with values from the plan
+async sub create_issue ($self, $plan) {
   await $self->do_query(
     q[
       mutation IssueCreate (
