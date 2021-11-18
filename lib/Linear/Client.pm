@@ -141,34 +141,44 @@ async sub plan_from_input ($self, $input) {
   # ++ foo bar baz
   # >> user foo bar baz
   # >> user@team foo bar baz
-  # >> team foo bar baz  <--- left unimplemented for now
+  # >> team foo bar baz
 
   $input =~ s/\A\s+//; # Trim leading whitespace just in case.
 
   my ($operator, $target, $rest) = split /\s+/, $input, 3;
 
+  # split $target if user@team
   if ($target =~ /@/) {
     ($username, $teamname) = split /@/, $target, 2;
   } else {
     $username = $target;
 	}
 
+  # set $assignee_id based on operator and whether $username is a team or a person
   if ($operator eq "++") {
     $assignee_id = await $self->get_authenticated_userId;
 	} elsif ($operator eq ">>"){
-	  my $user = await $self->lookup_user($username);
-	  die "can't find user for $username" unless $user;
-	  $assignee_id = $user->{id};
+    # first check if $username is a team, and if not then look up the user
+	  my $teams = await $self->teams();
+    if(exists $teams->{$username}){
+      $team_id = $teams->{$username}{id};
+    } else {
+      my $user = await $self->lookup_user($username);
+      die "can't find user for $username" unless $user;
+      $assignee_id = $user->{id};
+    }
    } else {
      Carp::confess("no ++ no >> no plan");
 	 }
 
+  # set $team_id 
   if ($teamname) {
     my $team_obj = await $self->lookup_team($teamname);
     die "can't find team for $teamname" unless $team_obj;
     $team_id = $team_obj->{id};
   }
 
+  # set priority if given
   if($rest =~ /\(!\)/) {
     $rest =~ s/\(!\)//; # Remove the (!) from the $rest string
     $issue{priority} = 1;
