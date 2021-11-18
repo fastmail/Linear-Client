@@ -120,17 +120,45 @@ cached_attr user => (
   },
 );
 
+cached_attr label => (
+  query => q[
+    query IssueLabels {
+      issueLabels { nodes { id name } }
+    }
+  ],
+  xform => sub ($res) {
+    return {
+      map {; lc $_->{name} => $_->{id}} $res->{data}->{issueLabels}{nodes}->@*
+    }
+  }
+);
+
+cached_attr state => (
+  query => q[
+    query WorkFlowState {
+      workflowStates {
+        nodes { id name type team { id name } }
+      }
+    }
+  ],
+  xform => sub ($res) {
+    return {
+      map {; lc $_->{name} => $_->{id} } $res->{data}->{workflowStates}{nodes}->@*
+    }
+  }
+);
+
 has default_team_id => (
   is => 'ro',
 );
-
+ 
 async sub plan_from_input ($self, $input) {
   my %issue = (
     description => q{},
     priority => 0,
   );
 
-  my $assignee_id;
+  my $assignee_id = "";
   my $team_id;
   my $issue_name;
 
@@ -154,18 +182,27 @@ async sub plan_from_input ($self, $input) {
     $username = $target;
 	}
 
+  # these nested ifs are a little hard to follow. 
   # set $assignee_id based on operator and whether $username is a team or a person
   if ($operator eq "++") {
     $assignee_id = await $self->get_authenticated_userId;
 	} elsif ($operator eq ">>"){
-    # first check if $username is a team, and if not then look up the user
-	  my $teams = await $self->teams();
-    if(exists $teams->{$username}){
-      $team_id = $teams->{$username}{id};
+    # >> triage. Currently this sets the assignee_id to the authenticated user I think because we're always passing in an actor_id
+    if ($username eq "triage") {
+      # set label to "support blocker" and state to triage
+      my $label = await $self->lookup_label("support blocker");
+      my @labelIds = [$label];
+      my $stateId = await $self->lookup_state("triage");
     } else {
-      my $user = await $self->lookup_user($username);
-      die "can't find user for $username" unless $user;
-      $assignee_id = $user->{id};
+      # check if $username is a team, and if not then look up the user
+      my $teams = await $self->teams();
+      if (exists $teams->{$username}) {
+        $team_id = $teams->{$username}{id};
+      } else {
+        my $user = await $self->lookup_user($username);
+        die "can't find user for $username" unless $user;
+        $assignee_id = $user->{id};
+      }
     }
    } else {
      Carp::confess("no ++ no >> no plan");
@@ -194,7 +231,7 @@ async sub plan_from_input ($self, $input) {
 
   $issue{title}  = $issue_name;
   $issue{teamId} = $team_id;
-  $issue{assigneeId} = $assignee_id;
+  $issue{assigneeId} = $assignee_id if $assignee_id;
 
   return \%issue;
 }
@@ -214,12 +251,12 @@ async sub get_authenticated_userId ($self) {
 
 async sub do_query {
   my ($self, $query, $variables, $arg) = @_;
-  $arg //= {};
+  #$arg //= {};
 
-  if ($arg->{actor_id_as}) {
-    my $actor_id = await $self->get_authenticated_userId();
-    $variables->{$_} //= $actor_id for $arg->{actor_id_as}->@*;
-  }
+  #if ($arg->{actor_id_as}) {
+  #  my $actor_id = await $self->get_authenticated_userId();
+  #  $variables->{$_} //= $actor_id for $arg->{actor_id_as}->@*;
+  #}
 
   my $res = await $self->_http->do_request(
     method => 'POST',
@@ -246,6 +283,8 @@ async sub create_issue ($self, $plan) {
         $description: String,
         $teamId: String!,
         $priority: Int,
+        $labelIds: [String!],
+        $stateId: String,
       ) {
         issueCreate (
           input: {
@@ -254,6 +293,8 @@ async sub create_issue ($self, $plan) {
             description: $description
             teamId: $teamId
             priority: $priority
+            labelIds: $labelIds
+            stateId: $stateId
           }
         ) {
           success
@@ -268,7 +309,7 @@ async sub create_issue ($self, $plan) {
       }
     ],
     $plan,
-    { actor_id_as => [ qw(assigneeId) ] },
+    #{ actor_id_as => [ qw(assigneeId) ] },
   );
 }
 

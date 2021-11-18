@@ -16,10 +16,11 @@ my $auth = $ENV{LINEAR_AUTH} // die "no LINEAR_AUTH env var set!\n";
 
 my $client = Linear::Client->new({
   auth_token => $auth,
-  default_team_id => 'c4196244-4381-498b-ae0b-9288fc459cdd',
+  #default_team_id => 'c4196244-4381-498b-ae0b-9288fc459cdd', #fastmail
+  default_team_id => '1ef74cd3-22de-4ebf-bf7c-2071de7205f5', #linearsonist
 });
 
-my $plan = await $client->plan_from_input('>> plumb eat all the hummus (!)');
+my $plan = await $client->plan_from_input('>> triage eat all the hummus (!)');
 my $res  = await $client->create_issue($plan);
 
 use Data::Dumper;
