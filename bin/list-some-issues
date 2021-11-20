@@ -25,7 +25,10 @@ async sub do_list {
   });
 
   for my $node ($query_result->{data}{issues}{nodes}->@*) {
-    printf "%10s - %s\n", $node->{identifier}, $node->{title};
+    printf "%10s - %s%s\n",
+      $node->{identifier},
+      ($node->{priority} == 1 ? "\N{FIRE} " : ""),
+      $node->{title};
   }
 
   return;
