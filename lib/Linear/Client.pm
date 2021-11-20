@@ -308,11 +308,26 @@ async sub search_issues ($self, $search) {
     team     => sub ($id)   { return { id   => { eq => $id    } } },
   );
 
+  my %filter;
+  KEY: for my $key (keys %$search) {
+    if (ref $search->{$key}) {
+      $filter{$key} = $search->{$key};
+      next KEY;
+    }
+
+    if ($inflate{$key}) {
+      $filter{$key} = $inflate{$key}->($search->{$key});
+      next KEY;
+    }
+
+    Carp::confess("Don't know what to do with value $search->{$key} for $key");
+  }
+
   # XXX: I am deeply unsure about the byte/text boundary here and will need to
   # think about it with my thinking at on. -- rjbs, 2021-11-19
   my $selection = GraphQL::Miranda->selection_set(
     issues => {
-      args    => { filter => $search },
+      args    => { filter => \%filter },
       select  => [ nodes => { select => [ qw(identifier title) ] } ],
     },
   );
