@@ -11,7 +11,9 @@ my $set = GraphQL::Miranda->selection_set(
   birthday => { select => [ qw( year month day ) ] },
 
   photo => { alias => 'bigPhoto', args => { x => 1024, y => 768 } },
-  photo => { alias => 'weePhoto' },
+  photo => { alias => 'weePhoto', args => { huge => Cpanel::JSON::XS::false } },
+
+  address => [ qw(street city nation) ],
 
   contact => {
     select => [ 'email' ],

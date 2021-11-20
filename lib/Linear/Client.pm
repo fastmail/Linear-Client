@@ -328,7 +328,14 @@ async sub search_issues ($self, $search) {
   my $selection = GraphQL::Miranda->selection_set(
     issues => {
       args    => { filter => \%filter },
-      select  => [ nodes => { select => [ qw(identifier title priority) ] } ],
+      select  => [
+        nodes => {
+          select => [
+            qw(identifier title priority),
+            team  => [ qw(name id) ],
+          ],
+        },
+      ],
     },
   );
 

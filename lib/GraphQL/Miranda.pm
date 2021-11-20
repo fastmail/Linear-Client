@@ -3,6 +3,7 @@ use warnings;
 package GraphQL::Miranda;
 
 use Data::OptList;
+use Params::Util qw(_HASH0 _ARRAY0);
 use Safe::Isa;
 use Scalar::Util qw(blessed);
 
@@ -138,7 +139,10 @@ sub selection_set {
               ? $rest[++$i] # If the next item is {...} it's args here.
               : {};
 
-      push @selections, GraphQL::Miranda::Field->new($this, $arg);
+      push @selections, GraphQL::Miranda::Field->new(
+        $this,
+        _ARRAY0($arg) ? { select => $arg } : $arg,
+      );
       next IDX;
     }
 
