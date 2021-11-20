@@ -18,8 +18,6 @@ my $client = Linear::Client->new({
   auth_token => $auth,
 });
 
-# $client->create_issue("++ eat more scrapple");
-
 async sub do_list {
   my $user_id = await $client->get_authenticated_userId;
   my $query_result = await $client->search_issues({
