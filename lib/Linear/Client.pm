@@ -6,6 +6,7 @@ use Moose;
 
 use Cpanel::JSON::XS;
 use Future::AsyncAwait;
+use GraphQL::Miranda;
 use LWP::UserAgent;
 use Net::Async::HTTP;
 use IO::Async::Loop;
@@ -251,6 +252,74 @@ async sub create_issue ($self, $plan) {
     $plan,
     { actor_id_as => [ qw(assigneeId) ] },
   );
+}
+
+async sub search_issues ($self, $search) {
+  # The classic LiquidPlanner search buddy behavior here was:
+  #   parse search  :  text  -> hunks
+  #   compile search:  hunks -> search arguments
+  #   execute search:  search arguments -> result
+  #
+  # Let's start by implementing execute, which *should* help indicate what kind
+  # of things need to be in compile and parse anyway.
+
+  # Pagination:
+  #   NEXT PAGE:
+  #   after : X - cursor id to search after
+  #   first : count of items after cursor start (from "after")
+  #
+  #   PREV PAGE:
+  #   before: X - cursor id to search before
+  #   last  : count of items before cursor start (from "before")
+  #
+  #   orderBy: how to sort
+  #
+
+  # Issue query filters look like this:
+  #   query issues(filter: { assignee: { id: { eq: "$user_id" } } }) {
+  #
+  # Here, a quick reference on what filters can be sent to an issues query,
+  # including only those I think we'll need out of the gate!
+  #
+  # and: (compound filter)
+  # or : (compount filter)
+  #
+  # assignee    : to whom we have assigned the issue
+  # createdAt   : when it was created
+  # creator     : who created it
+  # cycle       : scheduled when
+  # description : issue description contains...
+  # dueDate     : when it's due
+  # estimate    : issue estimate
+  # labels      : labels on issue
+  # priority    : issue priority
+  # project     : project
+  # snoozed*    : (there are filters for snoozing)
+  # startedAt   : when work started
+  # state       : what state it's in
+  # team        : team of the issue
+  # title       : issue title contains...
+  # updatedAt   : when it was last updated
+  state %inflate = (
+    assignee => sub ($id)   { return { id   => { eq => $id    } } },
+    priority => sub ($i)    { return { eq => $i } },
+    project  => sub ($id)   { return { id   => { eq => $id    } } },
+    state    => sub ($name) { return { name => { eq => $name  } } },
+    team     => sub ($id)   { return { id   => { eq => $id    } } },
+  );
+
+  # XXX: I am deeply unsure about the byte/text boundary here and will need to
+  # think about it with my thinking at on. -- rjbs, 2021-11-19
+  my $selection = GraphQL::Miranda->selection_set(
+    issues => {
+      args    => { filter => $search },
+      select  => [ nodes => { select => [ qw(identifier title) ] } ],
+    },
+  );
+
+  my $query = "query {\n" . $selection->as_string("  ") . "\n}\n";
+
+  await $self->do_query($query);
 }
 
 no Moose;
