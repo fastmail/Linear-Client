@@ -18,24 +18,17 @@ my $client = Linear::Client->new({
   auth_token => $auth,
 });
 
-# $client->create_issue("++ eat more scrapple");
-
 async sub do_list {
   my $user_id = await $client->get_authenticated_userId;
-  my $query_result = await $client->do_query(<<~"END"
-    query {
-      issues(filter: { assignee: { id: { eq: "$user_id" } } }) {
-        nodes {
-          identifier
-          title
-        }
-      }
-    }
-    END
-  );
+  my $query_result = await $client->search_issues({
+    assignee => $user_id,
+  });
 
   for my $node ($query_result->{data}{issues}{nodes}->@*) {
-    printf "%10s - %s\n", $node->{identifier}, $node->{title};
+    printf "%10s - %s%s\n",
+      $node->{identifier},
+      ($node->{priority} == 1 ? "\N{FIRE} " : ""),
+      $node->{title};
   }
 
   return;
