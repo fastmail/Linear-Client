@@ -19,24 +19,32 @@ my $team;
 my $task;
 
 for my $string (@strings) {
-  if ($string =~ s/\A$plusplus//) {
-    $string =~ s/\A\s+//; # removes beginning space
+  if ($string =~ s/\A$plusplus\s+//) {
     say "PLUS!  ($string) remains";
     $task = $string;
-  } elsif ($string =~ s/\A$angle//) { # removes the >> from $string
-    $string =~ s/\A\s+//; # removes beginning space
-    if ($string =~ /$at_team/) {
-      $assignee = $+{team};
-      $task = $string =~ /\w+@\w+(.+)/;
-      say "Assignee is $assignee";
-    } elsif ($string =~ /$user_at_team/) {
-      ($assignee, $team) = $string =~ s/$user_at_team//;
-      say $assignee;
-      say $team;
-      $team //= "DEFAULT";
-      say "ANGLE! ($string) remains; assignee $assignee; team $team";
+  } elsif ($string =~ s/\A$angle\s+//) { # removes the >> from $string
+    my $target;
+    ($target, $string) = split /\s+/, $string, 2;
+
+    my $username;
+    my $teamname;
+
+    if ($target =~ /\A([a-z]+)@([a-z]+)\z/) {
+      $username = $1;
+      $teamname = $2;
     }
+
+    # Rik imagines something like:  $self->_resolve_user_and_team($lhs, $rhs)
+    # where...
+    #   if /@/: $lhs = $username, $rhs = $teamname
+    #   else  : $lhs = $target
+    # ...and it returns a Future whose eventual value will be a hashref like:
+    #   { user_id => $guid, team_id => $guid }
+    # ...where user_id can be undef, but team_id must not.
+    # -- rjbs, 2021-12-06
   } else {
+    # We need a better failure strategy than cussing. :)
+    # Probably: return Future->fail(...)
     die "Shit.";
   }
 
