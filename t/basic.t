@@ -10,6 +10,9 @@ use Linear::TestClient;
 
 my $AUTH_USER_ID  = 'user-1234';
 my $DEFAULT_TEAM  = 'team-9876';
+my $CLIENT_TEAM = 'team-7890';
+my $PLUMBING_TEAM = 'team-3458';
+my $RASHA = 'user-234r23';
 
 my $client = Linear::TestClient->new({
   auth_token  => 'fake-token',
@@ -33,10 +36,43 @@ plan_results_ok(
     title => "eat more scrapple",
     description => q{}, # This seems weird, right? -- rjbs, 2021-10-28
     teamId => $DEFAULT_TEAM,
+    userId => $AUTH_USER_ID,
   }),
   "the simplest plan of all",
 );
 
+plan_results_ok(
+  ">> rasha eat more shawarma",
+  superhashof({
+    title => "eat more shawarma",
+    description => q{}, # This seems weird, right? -- rjbs, 2021-10-28
+    teamId => $DEFAULT_TEAM,
+    userId => $RASHA,
+  }),
+  "the simplest plan of all",
+);
+
+plan_results_ok(
+  ">> rasha\@client eat more pie",
+  superhashof({
+    title => "eat more pie",
+    description => q{}, # This seems weird, right? -- rjbs, 2021-10-28
+    teamId => $CLIENT_TEAM,
+    userId => $RASHA,
+  }),
+  "the simplest plan of all",
+);
+
+plan_results_ok(
+  ">> client eat more cake",
+  superhashof({
+    title => "eat more cake",
+    description => q{}, # This seems weird, right? -- rjbs, 2021-10-28
+    teamId => $CLIENT_TEAM,
+    userId => undef,
+  }),
+  "the simplest plan of all",
+);
 # TODO: Tests to write next...
 #   ++ title
 #   ++ title flags

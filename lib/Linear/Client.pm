@@ -160,51 +160,56 @@ async sub plan_from_input ($self, $input) {
 
   my $assignee_id = "";
   my $team_id;
-  my $issue_name;
+  my $issue_title;
+  my $stateId;
 
-	# We probably should not declare these variables unless we need them..
 	my $username;
 	my $teamname;
 
   # ++ foo bar baz
   # >> user foo bar baz
   # >> user@team foo bar baz
-  # >> team foo bar baz
-
+  
+  my $plusplus = qr{\+\+};
+  my $angle = qr{>>};
+  
   $input =~ s/\A\s+//; # Trim leading whitespace just in case.
 
-  my ($operator, $target, $rest) = split /\s+/, $input, 3;
+  #set priority if given
+  if($input =~ s/\(!\)//) {
+    $issue{priority} = 1;
+  };
 
-  # split $target if user@team
-  if ($target =~ /@/) {
-    ($username, $teamname) = split /@/, $target, 2;
-  } else {
-    $username = $target;
-	}
-
-  # these nested ifs are a little hard to follow. 
-  # set $assignee_id based on operator and whether $username is a team or a person
-  if ($operator eq "++") {
+  if ($input =~ s/\A$plusplus\s+//) {
+    $issue_title = $input;
     $assignee_id = await $self->get_authenticated_userId;
-	} elsif ($operator eq ">>"){
-    # >> triage. Currently this sets the assignee_id to the authenticated user I think because we're always passing in an actor_id
-    if ($username eq "triage") {
+  } elsif ($input =~ s/\A$angle\s+//) {
+    my $target;
+    ($target, $input) = split /\s+/, $input, 2;
+    $issue_title = $input;
+    if ($target eq "triage") {
       # set label to "support blocker" and state to triage
       my $label = await $self->lookup_label("support blocker");
       my @labelIds = [$label];
-      my $stateId = await $self->lookup_state("triage");
+      $stateId = await $self->lookup_state("triage");
+      # USER@TEAM
+    } elsif ($target =~ /\A(\w+)@(\w+)/) {
+      $username = $1;
+      $teamname = $2; 
+      my $user = await $self->lookup_user($username); 
+      $assignee_id = $user->{id};
     } else {
-      # check if $username is a team, and if not then look up the user
+      # check if $target is a team, and if not then look up the user
       my $teams = await $self->teams();
-      if (exists $teams->{$username}) {
-        $team_id = $teams->{$username}{id};
+      if (exists $teams->{$target}) {
+        $teamname = $target;
       } else {
-        my $user = await $self->lookup_user($username);
-        die "can't find user for $username" unless $user;
+        my $user = await $self->lookup_user($target);
+        die "can't find user for $target" unless $user;
         $assignee_id = $user->{id};
       }
-    }
-   } else {
+    } 
+  } else {
      Carp::confess("no ++ no >> no plan");
 	 }
 
@@ -213,26 +218,21 @@ async sub plan_from_input ($self, $input) {
     my $team_obj = await $self->lookup_team($teamname);
     die "can't find team for $teamname" unless $team_obj;
     $team_id = $team_obj->{id};
-  }
-
-  # set priority if given
-  if($rest =~ /\(!\)/) {
-    $rest =~ s/\(!\)//; # Remove the (!) from the $rest string
-    $issue{priority} = 1;
-  }
-
-  $issue_name = $rest;
-
-  $team_id //= $self->default_team_id;
+  } else {
+    $team_id = $self->default_team_id;
+  };
 
   unless ($team_id) {
     Carp::confess("can't create plan without team id");
-  }
+  };
 
-  $issue{title}  = $issue_name;
+  $issue{title}  = $issue_title;
   $issue{teamId} = $team_id;
   $issue{assigneeId} = $assignee_id if $assignee_id;
+  $issue{stateId} = $stateId if $stateId;
 
+  use Data::Dumper;
+  print Dumper(\%issue);
   return \%issue;
 }
 
@@ -251,12 +251,12 @@ async sub get_authenticated_userId ($self) {
 
 async sub do_query {
   my ($self, $query, $variables, $arg) = @_;
-  #$arg //= {};
+  $arg //= {};
 
-  #if ($arg->{actor_id_as}) {
-  #  my $actor_id = await $self->get_authenticated_userId();
-  #  $variables->{$_} //= $actor_id for $arg->{actor_id_as}->@*;
-  #}
+  if ($arg->{actor_id_as}) {
+    my $actor_id = await $self->get_authenticated_userId();
+   $variables->{$_} //= $actor_id for $arg->{actor_id_as}->@*;
+  }
 
   my $res = await $self->_http->do_request(
     method => 'POST',
@@ -309,7 +309,7 @@ async sub create_issue ($self, $plan) {
       }
     ],
     $plan,
-    #{ actor_id_as => [ qw(assigneeId) ] },
+    { actor_id_as => [ qw(assigneeId) ] },
   );
 }
 
