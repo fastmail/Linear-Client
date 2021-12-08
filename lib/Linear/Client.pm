@@ -151,6 +151,15 @@ cached_attr state => (
 has default_team_id => (
   is => 'ro',
 );
+
+my $LINESEP = qr{(
+  # space or newlines
+  # then three dashes and maybe some leading spaces
+  (^|\s+) ---\s*
+  |
+  \n
+)}nxs;
+
  
 async sub plan_from_input ($self, $input) {
   my %issue = (
@@ -158,7 +167,7 @@ async sub plan_from_input ($self, $input) {
     priority => 0,
   );
 
-  my $assignee_id = "";
+  my $assignee_id;
   my $team_id;
   my $issue_title;
   my $stateId;
@@ -166,43 +175,41 @@ async sub plan_from_input ($self, $input) {
 	my $username;
 	my $teamname;
 
-  # ++ foo bar baz
-  # >> user foo bar baz
-  # >> user@team foo bar baz
-  
   my $plusplus = qr{\+\+};
   my $angle = qr{>>};
   
   $input =~ s/\A\s+//; # Trim leading whitespace just in case.
+
+  # set description if given
+  if ($input =~ $LINESEP) {
+    ($input, $issue{description}) = split /$LINESEP/, $input, 2;
+  };
 
   #set priority if given
   if($input =~ s/\(!\)//) {
     $issue{priority} = 1;
   };
 
+  # if ++ or if >>
   if ($input =~ s/\A$plusplus\s+//) {
     $issue_title = $input;
     $assignee_id = await $self->get_authenticated_userId;
-  } elsif ($input =~ s/\A$angle\s+//) {
+  } elsif ($input =~ s/\A$angle\s+//) { # if >> split into target/input, and assign target accordingly (triage, user, team)
     my $target;
     ($target, $input) = split /\s+/, $input, 2;
     $issue_title = $input;
-    if ($target eq "triage") {
-      # set label to "support blocker" and state to triage
+    if ($target eq "triage") { # if target is triage set label to "support blocker" 
       my $label = await $self->lookup_label("support blocker");
       my @labelIds = [$label];
-      $stateId = await $self->lookup_state("triage");
-      # USER@TEAM
-    } elsif ($target =~ /\A(\w+)@(\w+)/) {
+    } elsif ($target =~ /\A(\w+)@(\w+)/) { #if target is user@team, set user as assignee. Team lookup on line 232
       $username = $1;
       $teamname = $2; 
       my $user = await $self->lookup_user($username); 
       $assignee_id = $user->{id};
-    } else {
-      # check if $target is a team, and if not then look up the user
-      my $teams = await $self->teams();
+    } else { # check if $target is a team, and if not then look up the user
+      my $teams = await $self->teams(); 
       if (exists $teams->{$target}) {
-        $teamname = $target;
+        $teamname = $target; # team lookup on line 232 
       } else {
         my $user = await $self->lookup_user($target);
         die "can't find user for $target" unless $user;
