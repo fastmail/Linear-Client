@@ -1,8 +1,10 @@
-use v5.34.0;
+use v5.24.0;
 use warnings;
 
 package Linear::Client;
 use Moose;
+
+# ABSTRACT: a client for Linear, the project management tool
 
 use Cpanel::JSON::XS;
 use Future::AsyncAwait;
