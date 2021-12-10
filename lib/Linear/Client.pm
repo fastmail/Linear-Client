@@ -184,8 +184,8 @@ async sub plan_from_input ($self, $input) {
     ($input, $issue{description}) = split /$LINESEP/, $input, 2;
   };
 
-  #set priority if given
-  if($input =~ s/\(!\)//) {
+  # set priority if given
+  if ($input =~ s/\s*\(!\)//) {
     $issue{priority} = 1;
   };
 

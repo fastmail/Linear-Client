@@ -100,6 +100,18 @@ plan_results_ok(
   "user, no team, description",
 );
 
+plan_results_ok(
+  '>> rjbs pay your bills (!)',
+  superhashof({
+    title       => "pay your bills",
+    description => q{},
+    teamId      => $DEFAULT_TEAM_ID,
+    assigneeId  => $TEST_USERS{rjbs}{id},
+    priority    => 1, # 1 is always urgent
+  }),
+  "user, no team, description, urgent!!",
+);
+
 # TODO: Tests to write next...
 #   ++ title
 #   ++ title flags
