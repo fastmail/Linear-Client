@@ -216,8 +216,8 @@ async sub plan_from_input ($self, $input) {
       }
     }
   } else {
-     Carp::confess("no ++ no >> no plan");
-	 }
+    Carp::confess("no ++ no >> no plan");
+  }
 
   # set $team_id
   if ($teamname) {
