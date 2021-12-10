@@ -238,8 +238,6 @@ async sub plan_from_input ($self, $input) {
   $issue{assigneeId} = $assignee_id if $assignee_id;
   $issue{stateId} = $stateId if $stateId;
 
-  use Data::Dumper;
-  print Dumper(\%issue);
   return \%issue;
 }
 

@@ -31,7 +31,7 @@ for my $attr (qw( label state user team )) {
   my $reader    = "_test_$plural";
   my $predicate = "_has_test_$plural";
 
-  has $attr => (
+  has $plural => (
     reader    => $reader,
     predicate => $predicate,
   );
