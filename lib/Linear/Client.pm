@@ -193,44 +193,49 @@ async sub plan_from_input ($self, $input) {
   if ($input =~ s/\A$plusplus\s+//) {
     $issue_title = $input;
     $assignee_id = await $self->get_authenticated_userId;
-  } elsif ($input =~ s/\A$angle\s+//) { # if >> split into target/input, and assign target accordingly (triage, user, team)
+  } elsif ($input =~ s/\A$angle\s+//) {
+    # if >> split into target/input, and assign target accordingly (triage,
+    # user, team)
     my $target;
     ($target, $input) = split /\s+/, $input, 2;
     $issue_title = $input;
-    if ($target eq "triage") { # if target is triage set label to "support blocker"
+    if ($target eq "triage") {
+      # if target is triage set label to "support blocker"
       my $label = await $self->lookup_label("support blocker");
       my @labelIds = [$label];
-    } elsif ($target =~ /\A(\w+)@(\w+)/) { #if target is user@team, set user as assignee. Team lookup on line 232
+    } elsif ($target =~ /\A(\w+)@(\w+)/) {
+      # if target is user@team, set user as assignee.
       $username = $1;
       $teamname = $2;
       my $user = await $self->lookup_user($username);
       $assignee_id = $user->{id};
-    } else { # check if $target is a team, and if not then look up the user
+    } else {
+      # check if $target is a team, and if not then look up the user
       my $teams = await $self->teams();
       if (exists $teams->{$target}) {
-        $teamname = $target; # team lookup on line 232
+        $teamname = $target;
       } else {
         my $user = await $self->lookup_user($target);
-        die "can't find user for $target" unless $user;
+        die "can't find user for $target\n" unless $user;
         $assignee_id = $user->{id};
       }
     }
   } else {
-    Carp::confess("no ++ no >> no plan");
+    die "Can't prepare a plan without ++ or >>\n";
   }
 
   # set $team_id
   if ($teamname) {
     my $team_obj = await $self->lookup_team($teamname);
-    die "can't find team for $teamname" unless $team_obj;
+    die "can't find team for $teamname\n" unless $team_obj;
     $team_id = $team_obj->{id};
   } else {
     $team_id = $self->default_team_id;
-  };
+  }
 
   unless ($team_id) {
-    Carp::confess("can't create plan without team id");
-  };
+    die "can't create plan without team id\n";
+  }
 
   $issue{title}  = $issue_title;
   $issue{teamId} = $team_id;

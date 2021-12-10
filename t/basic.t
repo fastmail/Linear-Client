@@ -42,6 +42,22 @@ sub plan_results_ok {
   cmp_deeply($plan, $want, $desc);
 }
 
+sub plan_results_error {
+  my ($input, $want, $desc) = @_;
+
+  local $Test::Builder::Level = $Test::Builder::Level + 1;
+
+  my @failure = $client->plan_from_input($input)->failure;
+
+  # This is stupid.  Our whole "die on resolve error" is probably a mistake.
+  # On the other hand, it's easy.  For now, since we're dying with a \n at the
+  # end (to suppress trace information), let's chomp that \n off here so that
+  # we don't need to specify it in our expectations. -- rjbs, 2021-12-10
+  chomp $failure[0] if ! ref $failure[0];
+
+  cmp_deeply(\@failure, $want, $desc);
+}
+
 plan_results_ok(
   "++ eat more scrapple",
   superhashof({
@@ -119,5 +135,21 @@ plan_results_ok(
 #   >> username title
 #   >> user@team title
 #   >> team title
+
+plan_results_error(
+  '>> michael play the saxophone',
+  [
+    "can't find user for michael",
+  ],
+  "fail to resolve user/team",
+);
+
+plan_results_error(
+  'wait for Godot',
+  [
+    "Can't prepare a plan without ++ or >>",
+  ],
+  "non-plan string passed in",
+);
 
 done_testing;
