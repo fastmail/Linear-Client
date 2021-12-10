@@ -171,8 +171,8 @@ async sub plan_from_input ($self, $input) {
   my $issue_title;
   my $stateId;
 
-	my $username;
-	my $teamname;
+  my $username;
+  my $teamname;
 
   my $plusplus = qr{\+\+};
   my $angle = qr{>>};
