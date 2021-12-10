@@ -160,11 +160,10 @@ my $LINESEP = qr{(
   \n
 )}nxs;
 
- 
 async sub plan_from_input ($self, $input) {
   my %issue = (
     description => q{},
-    priority => 0,
+    priority    => 0,
   );
 
   my $assignee_id;
@@ -177,7 +176,7 @@ async sub plan_from_input ($self, $input) {
 
   my $plusplus = qr{\+\+};
   my $angle = qr{>>};
-  
+
   $input =~ s/\A\s+//; # Trim leading whitespace just in case.
 
   # set description if given
@@ -198,29 +197,29 @@ async sub plan_from_input ($self, $input) {
     my $target;
     ($target, $input) = split /\s+/, $input, 2;
     $issue_title = $input;
-    if ($target eq "triage") { # if target is triage set label to "support blocker" 
+    if ($target eq "triage") { # if target is triage set label to "support blocker"
       my $label = await $self->lookup_label("support blocker");
       my @labelIds = [$label];
     } elsif ($target =~ /\A(\w+)@(\w+)/) { #if target is user@team, set user as assignee. Team lookup on line 232
       $username = $1;
-      $teamname = $2; 
-      my $user = await $self->lookup_user($username); 
+      $teamname = $2;
+      my $user = await $self->lookup_user($username);
       $assignee_id = $user->{id};
     } else { # check if $target is a team, and if not then look up the user
-      my $teams = await $self->teams(); 
+      my $teams = await $self->teams();
       if (exists $teams->{$target}) {
-        $teamname = $target; # team lookup on line 232 
+        $teamname = $target; # team lookup on line 232
       } else {
         my $user = await $self->lookup_user($target);
         die "can't find user for $target" unless $user;
         $assignee_id = $user->{id};
       }
-    } 
+    }
   } else {
      Carp::confess("no ++ no >> no plan");
 	 }
 
-  # set $team_id 
+  # set $team_id
   if ($teamname) {
     my $team_obj = await $self->lookup_team($teamname);
     die "can't find team for $teamname" unless $team_obj;
@@ -240,7 +239,6 @@ async sub plan_from_input ($self, $input) {
 
   return \%issue;
 }
-
 
 async sub get_authenticated_userId ($self) {
   my $user = await $self->do_query(q[
