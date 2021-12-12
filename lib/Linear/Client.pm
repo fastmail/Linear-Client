@@ -8,7 +8,6 @@ use Moose;
 
 use Cpanel::JSON::XS;
 use Future::AsyncAwait;
-use LWP::UserAgent;
 use Net::Async::HTTP;
 use IO::Async::Loop;
 use experimental 'signatures';
