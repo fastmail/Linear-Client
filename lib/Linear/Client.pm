@@ -208,7 +208,10 @@ async sub plan_from_input ($self, $input) {
       # if target is user@team, set user as assignee.
       $username = $1;
       $teamname = $2;
+
       my $user = await $self->lookup_user($username);
+      die "can't find user for $username\n" unless $user;
+
       $assignee_id = $user->{id};
     } else {
       # check if $target is a team, and if not then look up the user

@@ -152,4 +152,21 @@ plan_results_error(
   "non-plan string passed in",
 );
 
+plan_results_error(
+  '>> zoltan foretell the future',
+  [
+    "can't find user for zoltan",
+  ],
+  "can't assign to unknown person",
+);
+
+plan_results_error(
+  '>> zoltan@igg foretell the future',
+  [
+    "can't find user for zoltan",
+  ],
+  "can't assign to unknown person",
+);
+
+
 done_testing;
