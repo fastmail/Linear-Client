@@ -1,13 +1,15 @@
-use v5.34.0;
+use v5.24.0;
 use warnings;
 
 package Linear::Client;
 use Moose;
 
+# ABSTRACT: a client for Linear, the project management tool
+
 use Cpanel::JSON::XS;
 use Future::AsyncAwait;
+
 use GraphQL::Miranda;
-use LWP::UserAgent;
 use Net::Async::HTTP;
 use IO::Async::Loop;
 use experimental 'signatures';
@@ -121,66 +123,130 @@ cached_attr user => (
   },
 );
 
+cached_attr label => (
+  query => q[
+    query IssueLabels {
+      issueLabels { nodes { id name } }
+    }
+  ],
+  xform => sub ($res) {
+    return {
+      map {; lc $_->{name} => $_->{id}} $res->{data}->{issueLabels}{nodes}->@*
+    }
+  }
+);
+
+cached_attr state => (
+  query => q[
+    query WorkFlowState {
+      workflowStates {
+        nodes { id name type team { id name } }
+      }
+    }
+  ],
+  xform => sub ($res) {
+    return {
+      map {; lc $_->{name} => $_->{id} } $res->{data}->{workflowStates}{nodes}->@*
+    }
+  }
+);
+
 has default_team_id => (
   is => 'ro',
 );
 
+my $LINESEP = qr{(
+  # space or newlines
+  # then three dashes and maybe some leading spaces
+  (^|\s+) ---\s*
+  |
+  \n
+)}nxs;
+
 async sub plan_from_input ($self, $input) {
   my %issue = (
     description => q{},
+    priority    => 0,
   );
 
   my $assignee_id;
   my $team_id;
-  my $issue_name;
+  my $issue_title;
+  my $stateId;
 
-  # ++ foo bar baz
-  # >> user foo bar baz
-  # >> user@team foo bar baz
-  # >> team foo bar baz  <--- left unimplemented for now
+  my $username;
+  my $teamname;
+
+  my $plusplus = qr{\+\+};
+  my $angle = qr{>>};
 
   $input =~ s/\A\s+//; # Trim leading whitespace just in case.
 
-  if ($input =~ s/\A\+\+\s+//) {
+  # set description if given
+  if ($input =~ $LINESEP) {
+    ($input, $issue{description}) = split /$LINESEP/, $input, 2;
+  };
+
+  # set priority if given
+  if ($input =~ s/\s*\(!\)//) {
+    $issue{priority} = 1;
+  };
+
+  # if ++ or if >>
+  if ($input =~ s/\A$plusplus\s+//) {
+    $issue_title = $input;
     $assignee_id = await $self->get_authenticated_userId;
-    $issue_name = $input;
-  } elsif ($input =~ s/\A>>\s+//) {
-    (my $target, $input) = split /\s+/, $input, 2;
+  } elsif ($input =~ s/\A$angle\s+//) {
+    # if >> split into target/input, and assign target accordingly (triage,
+    # user, team)
+    my $target;
+    ($target, $input) = split /\s+/, $input, 2;
+    $issue_title = $input;
+    if ($target eq "triage") {
+      # if target is triage set label to "support blocker"
+      my $label = await $self->lookup_label("support blocker");
+      my @labelIds = [$label];
+    } elsif ($target =~ /\A(\w+)@(\w+)/) {
+      # if target is user@team, set user as assignee.
+      $username = $1;
+      $teamname = $2;
 
-    my $username;
-    my $teamname;
+      my $user = await $self->lookup_user($username);
+      die "can't find user for $username\n" unless $user;
 
-    if ($target =~ /@/) {
-      ($username, $teamname) = split /@/, $target, 2;
+      $assignee_id = $user->{id};
     } else {
-      $username = $target;
+      # check if $target is a team, and if not then look up the user
+      my $teams = await $self->teams();
+      if (exists $teams->{$target}) {
+        $teamname = $target;
+      } else {
+        my $user = await $self->lookup_user($target);
+        die "can't find user for $target\n" unless $user;
+        $assignee_id = $user->{id};
+      }
     }
-
-    my $user = await $self->lookup_user($username);
-    die "can't find user for $username" unless $user;
-
-    $assignee_id = $user->{id};
-
-    if ($teamname) {
-      my $team_obj = await $self->lookup_team($teamname);
-      die "can't find team for $teamname" unless $team_obj;
-      $team_id = $team_obj->{id};
-    }
-
-    $issue_name = $input;
   } else {
-    Carp::confess("no ++ no >> no plan");
+    die "Can't prepare a plan without ++ or >>\n";
   }
 
-  $team_id //= $self->default_team_id;
+  # set $team_id
+  if ($teamname) {
+    my $team_obj = await $self->lookup_team($teamname);
+    die "can't find team for $teamname\n" unless $team_obj;
+    $team_id = $team_obj->{id};
+  } else {
+    $team_id = $self->default_team_id;
+  }
 
   unless ($team_id) {
-    Carp::confess("can't create plan without team id");
+    die "can't create plan without team id\n";
   }
 
-  $issue{title}  = $issue_name;
+  $issue{title}  = $issue_title;
   $issue{teamId} = $team_id;
-  $issue{assigneeId} = $assignee_id;
+  $issue{assigneeId} = $assignee_id if $assignee_id;
+  $issue{stateId} = $stateId if $stateId;
 
   return \%issue;
 }
@@ -203,7 +269,7 @@ async sub do_query {
 
   if ($arg->{actor_id_as}) {
     my $actor_id = await $self->get_authenticated_userId();
-    $variables->{$_} //= $actor_id for $arg->{actor_id_as}->@*;
+   $variables->{$_} //= $actor_id for $arg->{actor_id_as}->@*;
   }
 
   my $res = await $self->_http->do_request(
@@ -230,6 +296,9 @@ async sub create_issue ($self, $plan) {
         $title: String!,
         $description: String,
         $teamId: String!,
+        $priority: Int,
+        $labelIds: [String!],
+        $stateId: String,
       ) {
         issueCreate (
           input: {
@@ -237,6 +306,9 @@ async sub create_issue ($self, $plan) {
             title: $title
             description: $description
             teamId: $teamId
+            priority: $priority
+            labelIds: $labelIds
+            stateId: $stateId
           }
         ) {
           success
@@ -245,6 +317,7 @@ async sub create_issue ($self, $plan) {
             identifier
             title
             team { id name }
+            priority
           }
         }
       }
