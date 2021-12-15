@@ -37,6 +37,30 @@ has _http => (
   },
 );
 
+# Sure, this is a hack, but it's probably about the right level of
+# sophistication/hackiness for the problem at hand.  Here we go:
+#
+# Cached attributes aren't the hack.  They're fine.  It's a way to say "when
+# you ask for a team by key, we'll look in our cached team data.  If we don't
+# have that data, or it's out of date, we'll fetch the team data from Linear.
+# That means that we're always returning Futures.  All this is fine!
+#
+# The hack is that we want to have multiple Linear::Client objects that share
+# this cache.  First off:  **don't forget** that this means the data needs to
+# be things that are equally visible to all users.  If we do know that, then
+# it's safe to store the cache in some external storage we've been handed.
+# That's what we'll do!  It will let us make one Linear::Client per Synergy
+# user, so most GraphQL work is done with the right authz, but they can all
+# share locally cached state when appropriate.
+#
+# We took some notes on a different object structure to make this less hacky,
+# but it's going to complicate things, and right now the goal is just to cross
+# the finish line.
+has _cache_guts => (
+  is => 'ro',
+  default => sub {  {}  },
+);
+
 my sub cached_attr ($name, %arg) {
   my $query = $arg{query};
   Carp::confess("no query given") unless $query;
@@ -48,19 +72,28 @@ my sub cached_attr ($name, %arg) {
   my $clearer_name    = "_clear_$cache_attr_name";
   my $plural          = $arg{plural} // "${name}s";
 
-  has $cache_attr_name => (
-    is      => 'ro',
-    lazy    => 1,
-    clearer => $clearer_name,
-    default => sub ($self) {
-      return {
+  Sub::Install::install_sub({
+    as    => $cache_attr_name,
+    code  => sub ($self) {
+      # If we've got a cache entry in the shared state, use that.  Otherwise,
+      # make a new entry in it.
+      my $guts = $self->_cache_guts;
+      return $guts->{$name} //= {
         cached_at => time,
         # We should allow the query to be a sub that generates things based on
         # client properties, but for now... whatever. -- rjbs, 2021-11-12
         value     => $self->do_query($query)->then($xform),
-      }
+      };
     }
-  );
+  });
+
+  Sub::Install::install_sub({
+    as    => $clearer_name,
+    code  => sub ($self) {
+      delete $self->_cache_guts->{$name};
+      return;
+    },
+  });
 
   Sub::Install::install_sub({
     as    => $plural,
