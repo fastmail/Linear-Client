@@ -23,10 +23,20 @@ my %TEST_USERS = (
 my $AUTH_USER_ID  = 'user-123';
 my $DEFAULT_TEAM_ID  = 'team-IGG';
 
+package Linear::TestHelper {
+  use experimental 'signatures';
+
+  sub new { bless {}, $_[0] }
+
+  sub normalize_username   ($self, $username) { $username }
+  sub team_id_for_username ($self, $username) { $DEFAULT_TEAM_ID }
+}
+
 my $client = Linear::TestClient->new({
   auth_token  => 'fake-token',
   authenticated_userId => $AUTH_USER_ID,
-  default_team_id => $DEFAULT_TEAM_ID,
+
+  helper => Linear::TestHelper->new,
 
   teams => \%TEST_TEAMS,
   users => \%TEST_USERS,

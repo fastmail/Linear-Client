@@ -184,10 +184,6 @@ cached_attr state => (
   }
 );
 
-has default_team_id => (
-  is => 'ro',
-);
-
 my $LINESEP = qr{(
   # space or newlines
   # then three dashes and maybe some leading spaces
@@ -196,11 +192,20 @@ my $LINESEP = qr{(
   \n
 )}nxs;
 
+has helper => (
+  is => 'ro',
+  isa => 'Object',
+);
+
 async sub plan_from_input ($self, $input) {
   my %issue = (
     description => q{},
     priority    => 0,
   );
+
+  # This object can help us do directory lookups and the like, if provided.
+  # -- rjbs, 2021-12-20
+  my $helper = $self->helper;
 
   my $assignee_id;
   my $team_id;
@@ -248,6 +253,10 @@ async sub plan_from_input ($self, $input) {
       $username = $1;
       $teamname = $2;
 
+      if ($helper) {
+        $username = $helper->normalize_username($username) // $username;
+      }
+
       my $user = await $self->lookup_user($username);
       die "can't find user for $username\n" unless $user;
 
@@ -258,6 +267,10 @@ async sub plan_from_input ($self, $input) {
       if (exists $teams->{$target}) {
         $teamname = $target;
       } else {
+        if ($helper) {
+          $target = $helper->normalize_username($target) // $target;
+        }
+
         my $user = await $self->lookup_user($target);
         die "can't find user for $target\n" unless $user;
         $assignee_id = $user->{id};
@@ -267,13 +280,14 @@ async sub plan_from_input ($self, $input) {
     die "Can't prepare a plan without ++ or >>\n";
   }
 
-  # set $team_id
   if ($teamname) {
     my $team_obj = await $self->lookup_team($teamname);
     die "can't find team for $teamname\n" unless $team_obj;
     $team_id = $team_obj->{id};
   } else {
-    $team_id = $self->default_team_id;
+    $team_id = $helper
+             ? $helper->team_id_for_username($username)
+             : undef;
   }
 
   unless ($team_id) {
