@@ -276,6 +276,7 @@ async sub plan_from_input ($self, $input) {
 
         my $user = await $self->lookup_user($target);
         die "can't find user for $target\n" unless $user;
+        $username = $target;
         $assignee_id = $user->{id};
       }
     }
