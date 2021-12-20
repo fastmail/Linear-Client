@@ -13,16 +13,16 @@ sub _http {
   Carp::confess("Tried to access HTTP client on offline test client");
 }
 
-has authenticated_userId => (
+has authenticated_user => (
   is    => 'ro',
   lazy  => 1,
   default => sub {
-    Carp::confess("tried to read authenticated_userId but none set");
+    Carp::confess("tried to read authenticated_user but none set");
   },
 );
 
-async sub get_authenticated_userId ($self) {
-  $self->authenticated_userId;
+async sub get_authenticated_user ($self) {
+  $self->authenticated_user;
 }
 
 for my $attr (qw( label state user team )) {

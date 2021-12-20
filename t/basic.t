@@ -34,7 +34,7 @@ package Linear::TestHelper {
 
 my $client = Linear::TestClient->new({
   auth_token  => 'fake-token',
-  authenticated_userId => $AUTH_USER_ID,
+  authenticated_user => { username => 'jfblogs', id => $AUTH_USER_ID },
 
   helper => Linear::TestHelper->new,
 

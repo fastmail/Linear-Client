@@ -19,9 +19,9 @@ my $client = Linear::Client->new({
 });
 
 async sub do_list {
-  my $user_id = await $client->get_authenticated_userId;
+  my $user = await $client->get_authenticated_user;
   my $query_result = await $client->search_issues({
-    assignee => $user_id,
+    assignee => $user->{id},
   });
 
   for my $node ($query_result->{data}{issues}{nodes}->@*) {

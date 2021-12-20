@@ -233,7 +233,10 @@ async sub plan_from_input ($self, $input) {
   # if ++ or if >>
   if ($input =~ s/\A$plusplus\s+//) {
     $issue_title = $input;
-    $assignee_id = await $self->get_authenticated_userId;
+    my $auth_user = await $self->get_authenticated_user;
+
+    $assignee_id = $auth_user->{id};
+    $username    = $auth_user->{username};
   } elsif ($input =~ s/\A$angle\s+//) {
     # if >> split into target/input, and assign target accordingly (triage,
     # user, team)
@@ -306,16 +309,17 @@ async sub plan_from_input ($self, $input) {
   return \%issue;
 }
 
-async sub get_authenticated_userId ($self) {
+async sub get_authenticated_user ($self) {
   my $user = await $self->do_query(q[
     query Me {
       viewer {
         id
+        username: displayName
       }
     }
   ]);
 
-  return $user->{data}{viewer}{id};
+  return $user->{data}{viewer};
 }
 
 async sub do_query {
@@ -323,8 +327,9 @@ async sub do_query {
   $arg //= {};
 
   if ($arg->{actor_id_as}) {
-    my $actor_id = await $self->get_authenticated_userId();
-   $variables->{$_} //= $actor_id for $arg->{actor_id_as}->@*;
+    my $actor = await $self->get_authenticated_user;
+    my $actor_id = $actor->{id};
+    $variables->{$_} //= $actor_id for $arg->{actor_id_as}->@*;
   }
 
   my $res = await $self->_http->do_request(
