@@ -164,7 +164,7 @@ cached_attr label => (
   ],
   xform => sub ($res) {
     return {
-      map {; lc $_->{name} => $_->{id}} $res->{data}->{issueLabels}{nodes}->@*
+      map {; lc $_->{name} => $_->{id} } $res->{data}->{issueLabels}{nodes}->@*
     }
   }
 );
