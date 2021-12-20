@@ -236,6 +236,10 @@ async sub plan_from_input ($self, $input) {
     ($target, $input) = split /\s+/, $input, 2;
     $issue_title = $input;
     if ($target eq "triage") {
+      # XXX This can't possibly work:  the @labelIds variable is being declared
+      # but not used outside this scope. -- rjbs, 2021-12-20
+      die "Triage is not implemented.\n";
+
       # if target is triage set label to "support blocker"
       my $label = await $self->lookup_label("support blocker");
       my @labelIds = [$label];
