@@ -22,6 +22,7 @@ async sub do_list {
   my $user = await $client->get_authenticated_user;
   my $query_result = await $client->search_issues({
     assignee => $user->{id},
+    closed   => 0,
   });
 
   for my $node ($query_result->{data}{issues}{nodes}->@*) {

@@ -433,6 +433,14 @@ async sub search_issues ($self, $search) {
   # team        : team of the issue
   # title       : issue title contains...
   # updatedAt   : when it was last updated
+  state %replace = (
+    closed => sub ($closed) {
+      return $closed
+        ? (state => { type => {  in => [ qw( canceled completed ) ] } })
+        : (state => { type => { nin => [ qw( canceled completed ) ] } });
+    },
+  );
+
   state %inflate = (
     assignee => sub ($id)   { return { id   => { eq => $id    } } },
     priority => sub ($i)    { return { eq => $i } },
@@ -443,6 +451,13 @@ async sub search_issues ($self, $search) {
 
   my %filter;
   KEY: for my $key (keys %$search) {
+    if ($replace{$key}) {
+      # This is somewhat bold!  What about conflicts? -- rjbs, 2021-12-20
+      my %result = $replace{$key}->($search->{$key});
+      @filter{ keys %result } = values %result;
+      next KEY;
+    }
+
     if (ref $search->{$key}) {
       $filter{$key} = $search->{$key};
       next KEY;
@@ -466,6 +481,7 @@ async sub search_issues ($self, $search) {
           select => [
             qw(identifier title priority),
             team  => [ qw(name id) ],
+            state => [ qw(name type) ],
           ],
         },
       ],
