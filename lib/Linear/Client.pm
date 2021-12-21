@@ -439,6 +439,10 @@ async sub search_issues ($self, $search) {
         ? (state => { type => {  in => [ qw( canceled completed ) ] } })
         : (state => { type => { nin => [ qw( canceled completed ) ] } });
     },
+    label => sub ($label) {
+      # This is a mess, too... -- rjbs, 2021-12-20
+      return (labels => { name => { eq => $label } });
+    },
   );
 
   state %inflate = (
