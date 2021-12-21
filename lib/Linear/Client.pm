@@ -25,6 +25,17 @@ has auth_token => (
   required => 1,
 );
 
+has debug_flogger => (
+  is => 'ro',
+);
+
+sub maybe_log ($self, $arg) {
+  my $flogger = $self->debug_flogger;
+  return unless $flogger;
+
+  $flogger->log($arg);
+}
+
 has _http => (
   is      => 'ro',
   lazy    => 1,
@@ -243,16 +254,6 @@ async sub plan_from_input ($self, $input) {
     my $target;
     ($target, $input) = split /\s+/, $input, 2;
     $issue_title = $input;
-
-    if ($target eq "triage") {
-      # The target "triage" is magic, and means:
-      #   * no assignee
-      #   * plumbing team
-      #   * with the "support blocker" label
-      my $label = await $self->lookup_label("support blocker");
-      $issue{labelIds} = [ $label ];
-      $target = 'plumb';
-    }
 
     if ($target =~ /\A(\w+)@(\w+)/) {
       # if target is user@team, set user as assignee.
@@ -477,6 +478,8 @@ async sub search_issues ($self, $search) {
 
     Carp::confess("Don't know what to do with value $search->{$key} for $key");
   }
+
+  $self->maybe_log([ "given search %s built filter %s", $search, \%filter ]);
 
   # XXX: I am deeply unsure about the byte/text boundary here and will need to
   # think about it with my thinking at on. -- rjbs, 2021-11-19
