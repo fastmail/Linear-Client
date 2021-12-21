@@ -446,7 +446,10 @@ async sub search_issues ($self, $search) {
   );
 
   state %inflate = (
-    assignee => sub ($id)   { return { id   => { eq => $id    } } },
+    assignee => sub ($id)   {
+      return { id   => { eq => $id    } } if defined $id;
+      return { null => JSON::true() };
+    },
     priority => sub ($i)    { return { eq => $i } },
     project  => sub ($id)   { return { id   => { eq => $id    } } },
     state    => sub ($name) { return { name => { eq => $name  } } },
