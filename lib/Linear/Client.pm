@@ -208,6 +208,25 @@ has helper => (
   isa => 'Object',
 );
 
+async sub lookup_team_or_user ($self, $string) {
+  my $helper   = $self->helper;
+  my $username = $helper ? $helper->normalize_username($string) // $string
+                         : $string;
+
+  my $user = await $self->lookup_user($username);
+
+  return (user => $user) if $user;
+
+  my $team_name = $helper ? $helper->normalize_team_name($string) // $string
+                          : $string;
+
+  my $team = await $self->lookup_team($team_name);
+
+  return (team => $team) if $team;
+
+  return;
+}
+
 async sub plan_from_input ($self, $input) {
   my %issue = (
     description => q{},
