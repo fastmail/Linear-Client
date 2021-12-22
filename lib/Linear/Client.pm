@@ -340,14 +340,7 @@ async sub get_authenticated_user ($self) {
 }
 
 async sub do_query {
-  my ($self, $query, $variables, $arg) = @_;
-  $arg //= {};
-
-  if ($arg->{actor_id_as}) {
-    my $actor = await $self->get_authenticated_user;
-    my $actor_id = $actor->{id};
-    $variables->{$_} //= $actor_id for $arg->{actor_id_as}->@*;
-  }
+  my ($self, $query, $variables) = @_;
 
   my $res = await $self->_http->do_request(
     method => 'POST',
@@ -400,7 +393,6 @@ async sub create_issue ($self, $plan) {
       }
     ],
     $plan,
-    { actor_id_as => [ qw(assigneeId) ] },
   );
 }
 
