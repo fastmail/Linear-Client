@@ -268,8 +268,7 @@ async sub plan_from_input ($self, $input) {
     $assignee_id = $auth_user->{id};
     $username    = $auth_user->{username};
   } elsif ($input =~ s/\A$angle\s+//) {
-    # if >> split into target/input, and assign target accordingly (triage,
-    # user, team)
+    # if >> split into target/input, and assign target accordingly (user, team)
     my $target;
     ($target, $input) = split /\s+/, $input, 2;
     $issue_title = $input;
