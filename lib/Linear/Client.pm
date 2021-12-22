@@ -283,23 +283,21 @@ async sub plan_from_input ($self, $input) {
       }
 
       my $user = await $self->lookup_user($username);
-      die "can't find user for $username\n" unless $user;
+      die qq{can't find user for "$username"\n} unless $user;
 
       $assignee_id = $user->{id};
     } else {
-      # check if $target is a team, and if not then look up the user
-      my $teams = await $self->teams();
-      if (exists $teams->{$target}) {
-        $teamname = $target;
-      } else {
-        if ($helper) {
-          $target = $helper->normalize_username($target) // $target;
-        }
+      my ($type, $thing) = await $self->lookup_team_or_user($target);
 
-        my $user = await $self->lookup_user($target);
-        die "can't find user for $target\n" unless $user;
-        $username = $target;
-        $assignee_id = $user->{id};
+      die qq{can't find a user or team for "$target"\n} unless $type;
+
+      if ($type eq 'user') {
+        $username = $thing->{displayName};
+        $assignee_id = $thing->{id};
+      } elsif ($type eq 'team') {
+        $teamname = $thing->{key};
+      } else {
+        die "unreachable condition: found something neither team nor user!\n";
       }
     }
   } else {

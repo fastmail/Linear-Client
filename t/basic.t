@@ -28,8 +28,9 @@ package Linear::TestHelper {
 
   sub new { bless {}, $_[0] }
 
-  sub normalize_username   ($self, $username) { $username }
-  sub team_id_for_username ($self, $username) { $DEFAULT_TEAM_ID }
+  sub normalize_username   ($self, $username)  { $username }
+  sub team_id_for_username ($self, $username)  { $DEFAULT_TEAM_ID }
+  sub normalize_team_name  ($self, $team_name) { $team_name }
 }
 
 my $client = Linear::TestClient->new({
@@ -149,7 +150,7 @@ plan_results_ok(
 plan_results_error(
   '>> michael play the saxophone',
   [
-    "can't find user for michael",
+    q{can't find a user or team for "michael"},
   ],
   "fail to resolve user/team",
 );
@@ -165,7 +166,7 @@ plan_results_error(
 plan_results_error(
   '>> zoltan foretell the future',
   [
-    "can't find user for zoltan",
+    q{can't find a user or team for "zoltan"},
   ],
   "can't assign to unknown person",
 );
@@ -173,10 +174,9 @@ plan_results_error(
 plan_results_error(
   '>> zoltan@igg foretell the future',
   [
-    "can't find user for zoltan",
+    q{can't find user for "zoltan"},
   ],
-  "can't assign to unknown person",
+  "can't assign to unknown person at a known team",
 );
-
 
 done_testing;
