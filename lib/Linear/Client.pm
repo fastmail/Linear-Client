@@ -127,7 +127,7 @@ my sub cached_attr ($name, %arg) {
     as    => "lookup_$name",
     code  => async sub ($self, $key) {
       my $dict = await $self->$plural;
-      return $dict->{ $key };
+      return $dict->{ lc $key };
     }
   });
 }

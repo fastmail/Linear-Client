@@ -53,7 +53,7 @@ for my $attr (qw( label state user team )) {
         unless $self->$predicate;
 
       my $dict = await $self->$plural;
-      return $dict->{ $key };
+      return $dict->{ lc $key };
     }
   });
 }
