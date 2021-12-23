@@ -227,6 +227,52 @@ async sub lookup_team_or_user ($self, $string) {
   return;
 }
 
+# Expects '<user>', '<user>@<team>', '<team>'. Returns a
+# userid, teamid pair. Either or both may be null
+async sub who_or_what ($self, $spec) {
+  my $teamname;
+  my $username;
+
+  my $helper = $self->helper;
+
+  my ($user, $team);
+
+  if ($spec =~ /\A(\w+)@(\w+)/) {
+    # if target is user@team, set user as assignee.
+    $username = $1;
+    $teamname = $2;
+
+    if ($helper) {
+      $username = $helper->normalize_username($username) // $username;
+    }
+
+    $user = await $self->lookup_user($username);
+    die qq{can't find user for "$username"\n} unless $user;
+
+    $team = await $self->lookup_team($teamname);
+    die "can't find team for $teamname\n" unless $team;
+  } else {
+    my ($type, $thing) = await $self->lookup_team_or_user($spec);
+
+    die qq{can't find a user or team for "$spec"\n} unless $type;
+
+    if ($type eq 'user') {
+      $user = $thing;
+    } elsif ($type eq 'team') {
+      $team = $thing;
+    } else {
+      die "unreachable condition: found something neither team nor user!\n";
+    }
+  }
+
+  my $assignee_id = $user->{id} if $user;
+  my $team_id = $team   ? $team->{id}
+              : $helper ? $helper->team_id_for_username($user->{displayName})
+              :           undef;
+
+  return ($assignee_id, $team_id);
+}
+
 async sub plan_from_input ($self, $input) {
   my %issue = (
     description => q{},
@@ -237,13 +283,8 @@ async sub plan_from_input ($self, $input) {
   # -- rjbs, 2021-12-20
   my $helper = $self->helper;
 
-  my $assignee_id;
-  my $team_id;
   my $issue_title;
   my $stateId;
-
-  my $username;
-  my $teamname;
 
   my $plusplus = qr{\+\+};
   my $angle = qr{>>};
@@ -260,58 +301,29 @@ async sub plan_from_input ($self, $input) {
     $issue{priority} = 1;
   };
 
+  my ($assignee_id, $team_id);
+
   # if ++ or if >>
   if ($input =~ s/\A$plusplus\s+//) {
     $issue_title = $input;
     my $auth_user = await $self->get_authenticated_user;
 
     $assignee_id = $auth_user->{id};
-    $username    = $auth_user->{username};
+    my $username = $auth_user->{username};
+
+    $team_id = $helper
+             ? $helper->team_id_for_username($username)
+             : undef;
+
   } elsif ($input =~ s/\A$angle\s+//) {
     # if >> split into target/input, and assign target accordingly (user, team)
     my $target;
     ($target, $input) = split /\s+/, $input, 2;
     $issue_title = $input;
 
-    if ($target =~ /\A(\w+)@(\w+)/) {
-      # if target is user@team, set user as assignee.
-      $username = $1;
-      $teamname = $2;
-
-      if ($helper) {
-        $username = $helper->normalize_username($username) // $username;
-      }
-
-      my $user = await $self->lookup_user($username);
-      die qq{can't find user for "$username"\n} unless $user;
-
-      $assignee_id = $user->{id};
-    } else {
-      my ($type, $thing) = await $self->lookup_team_or_user($target);
-
-      die qq{can't find a user or team for "$target"\n} unless $type;
-
-      if ($type eq 'user') {
-        $username = $thing->{displayName};
-        $assignee_id = $thing->{id};
-      } elsif ($type eq 'team') {
-        $teamname = $thing->{key};
-      } else {
-        die "unreachable condition: found something neither team nor user!\n";
-      }
-    }
+    ($assignee_id, $team_id) = await $self->who_or_what($target);
   } else {
     die "Can't prepare a plan without ++ or >>\n";
-  }
-
-  if ($teamname) {
-    my $team_obj = await $self->lookup_team($teamname);
-    die "can't find team for $teamname\n" unless $team_obj;
-    $team_id = $team_obj->{id};
-  } else {
-    $team_id = $helper
-             ? $helper->team_id_for_username($username)
-             : undef;
   }
 
   unless ($team_id) {
