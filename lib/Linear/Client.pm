@@ -400,6 +400,7 @@ async sub create_issue ($self, $plan) {
             title
             team { id name }
             priority
+            url
           }
         }
       }
