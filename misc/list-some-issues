@@ -25,11 +25,17 @@ async sub do_list {
     closed   => 0,
   });
 
-  for my $node ($query_result->{data}{issues}{nodes}->@*) {
-    printf "%10s - %s%s\n",
-      $node->{identifier},
-      ($node->{priority} == 1 ? "\N{FIRE} " : ""),
-      $node->{title};
+  while ($query_result) {
+    for my $node ($query_result->payload->{nodes}->@*) {
+      printf "%10s - %s%s\n",
+        $node->{identifier},
+        ($node->{priority} == 1 ? "\N{FIRE} " : ""),
+        $node->{title};
+    }
+
+    say "---" if $query_result->has_next_page;
+
+    $query_result = await $query_result->next_page;
   }
 
   return;

@@ -9,6 +9,8 @@ use Moose;
 use Cpanel::JSON::XS;
 use Future::AsyncAwait;
 
+use Linear::Client::PaginatedResult;
+
 use GraphQL::Miranda;
 use Net::Async::HTTP;
 use IO::Async::Loop;
@@ -503,26 +505,51 @@ async sub search_issues ($self, $search) {
 
   $self->maybe_log([ "given search %s built filter %s", $search, \%filter ]);
 
-  # XXX: I am deeply unsure about the byte/text boundary here and will need to
-  # think about it with my thinking at on. -- rjbs, 2021-11-19
-  my $selection = GraphQL::Miranda->selection_set(
-    issues => {
-      args    => { filter => \%filter },
-      select  => [
-        nodes => {
-          select => [
-            qw(identifier title priority),
-            team  => [ qw(name id) ],
-            state => [ qw(name type) ],
-          ],
+  my $gen = sub ($pager, @rest) {
+    unless (
+      @rest == 0
+      ||
+      @rest == 2 && ($rest[0] eq 'after' || $rest[0] eq 'before')
+    ) {
+      die "confused! [@rest]";
+    }
+
+    # XXX: I am deeply unsure about the byte/text boundary here and will need
+    # to think about it with my thinking at on. -- rjbs, 2021-11-19
+    my $selection = GraphQL::Miranda->selection_set(
+      issues => {
+        args    => {
+          filter => \%filter,
+          @rest,
         },
-      ],
-    },
-  );
+        select  => [
+          pageInfo => {
+            select => [ qw( startCursor endCursor hasNextPage hasPreviousPage ) ],
+          },
+          nodes => {
+            select => [
+              qw(identifier title priority),
+              team  => [ qw(name id) ],
+              state => [ qw(name type) ],
+            ],
+          },
+        ],
+      },
+    );
 
-  my $query = "query {\n" . $selection->as_string("  ") . "\n}\n";
+    return "query {\n" . $selection->as_string("  ") . "\n}\n";
+  };
 
-  await $self->do_query($query);
+  my $xtract  = sub { $_[0]{data}{issues} };
+
+  my $payload = await $self->do_query($self->$gen);
+
+  return Linear::Client::PaginatedResult->new({
+    client  => $self,
+    raw_payload     => $payload,
+    query_generator => $gen,
+    extractor       => $xtract,
+  });
 }
 
 no Moose;
