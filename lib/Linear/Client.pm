@@ -135,7 +135,7 @@ my sub cached_attr ($name, %arg) {
 cached_attr team => (
   query => q[
     query Teams {
-      teams { nodes { id key name } }
+      teams { nodes { id key name labels { nodes { id name color } } states { nodes { id name color } }  } }
     }
   ],
   xform => sub ($res) {
@@ -165,34 +165,6 @@ cached_attr user => (
 
     return $dict;
   },
-);
-
-cached_attr label => (
-  query => q[
-    query IssueLabels {
-      issueLabels { nodes { id name } }
-    }
-  ],
-  xform => sub ($res) {
-    return {
-      map {; lc $_->{name} => $_->{id} } $res->{data}->{issueLabels}{nodes}->@*
-    }
-  }
-);
-
-cached_attr state => (
-  query => q[
-    query WorkFlowState {
-      workflowStates {
-        nodes { id name type team { id name } }
-      }
-    }
-  ],
-  xform => sub ($res) {
-    return {
-      map {; lc $_->{name} => $_->{id} } $res->{data}->{workflowStates}{nodes}->@*
-    }
-  }
 );
 
 my $LINESEP = qr{(
@@ -273,6 +245,17 @@ async sub who_or_what ($self, $spec) {
 
   return ($assignee_id, $team_id);
 }
+
+async sub lookup_team_label ($self, $team_key, $label_name) {
+  my $team = await $self->lookup_team($team_key);
+  my @team_labels = $team->{labels}{nodes}->@*;
+  for (@team_labels) {
+    if (lc $_->{'name'} eq lc $label_name) {
+      return $_->{'id'};
+    }
+  }
+  die "No label $label_name found for team $team_key";
+};
 
 async sub plan_from_input ($self, $input) {
   my %issue = (
