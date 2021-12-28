@@ -213,17 +213,18 @@ async sub lookup_team_or_user ($self, $string) {
   my $username = $helper ? $helper->normalize_username($string) // $string
                          : $string;
 
-  my $user = await $self->lookup_user($username);
-
-  return (user => $user) if $user;
-
   my $team_name = $helper ? $helper->normalize_team_name($string) // $string
                           : $string;
 
-  my $team = await $self->lookup_team($team_name);
+  my ($user, $team) = await Future->needs_all(
+    $self->lookup_user($username),
+    $self->lookup_team($team_name),
+  );
 
+  die "team-or-user name $string is ambiguous" if $user && $team;
+
+  return (user => $user) if $user;
   return (team => $team) if $team;
-
   return;
 }
 
