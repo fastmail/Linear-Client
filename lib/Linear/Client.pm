@@ -365,6 +365,7 @@ async sub create_issue ($self, $plan) {
         $priority: Int,
         $labelIds: [String!],
         $stateId: String,
+        $projectId: String,
       ) {
         issueCreate (
           input: {
@@ -375,6 +376,7 @@ async sub create_issue ($self, $plan) {
             priority: $priority
             labelIds: $labelIds
             stateId: $stateId
+            projectId: $projectId
           }
         ) {
           success
