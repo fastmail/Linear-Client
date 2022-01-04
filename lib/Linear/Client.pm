@@ -229,6 +229,33 @@ cached_attr user => (
   },
 );
 
+async sub fetch_issue ($self, $identifier) {
+  my $response = await $self->do_query(q[
+    query Issue ($id: String!) {
+      issue (id: $id) {
+        id
+        title
+        identifier
+        description
+        assignee { displayName }
+        state { name id }
+        team { key }
+        number
+        labels { nodes { id name } }
+        }
+      }
+    ],
+    { id => $identifier },
+  );
+  
+  my $issue = $response->{data}{issue};
+  $issue->{team} = $issue->{team}{key};
+  $issue->{assignee} = $issue->{assignee}{displayName};
+  $issue->{labels} = $issue->{labels}{nodes}; 
+  return undef unless defined $issue->{data};
+  return $issue;
+}
+
 my $LINESEP = qr{(
   # space or newlines
   # then three dashes and maybe some leading spaces
