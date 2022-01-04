@@ -147,6 +147,25 @@ cached_attr team => (
   },
 );
 
+cached_attr issue => (
+  query => q[
+    query Issues {
+      issues {nodes {id number title assignee {displayName} team {key}}}}
+  ],
+  xform => sub ($res) { 
+    my $dict = {};
+    
+    for my $node ($res->{data}{issues}{nodes}->@*) {
+      my $team_key = lc $node->{team}{key};
+      $dict->{ $team_key."-".$node->{number} } = $node;
+      $node->{team} = $node->{team}{key};
+      $node->{assignee} =$node->{assignee}{displayName};
+    }
+
+    return $dict;
+  },
+);
+
 cached_attr user => (
   query => q[
     query User {
@@ -168,6 +187,8 @@ cached_attr user => (
     return $dict;
   },
 );
+
+
 
 my $LINESEP = qr{(
   # space or newlines
