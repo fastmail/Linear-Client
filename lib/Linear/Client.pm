@@ -465,7 +465,7 @@ async sub search_issues ($self, $search) {
   state %inflate = (
     assignee => sub ($id)   {
       return { id   => { eq => $id    } } if defined $id;
-      return { null => JSON::true() };
+      return { null => Cpanel::JSON::XS::true() };
     },
     priority => sub ($i)    { return { eq => $i } },
     project  => sub ($id)   { return { id   => { eq => $id    } } },
