@@ -43,12 +43,19 @@ has _http => (
   lazy    => 1,
   default => sub ($self, @) {
     my $loop = IO::Async::Loop->new();
-    my $http = Net::Async::HTTP->new();
+    my $http = Net::Async::HTTP->new(
+      notifier_name => 'Linear::Client',
+    );
     $loop->add( $http );
 
     return $http;
   },
 );
+
+sub DEMOLISH ($self, @) {
+  my $loop = IO::Async::Loop->new();
+  $loop->remove($self->_http);
+}
 
 # Sure, this is a hack, but it's probably about the right level of
 # sophistication/hackiness for the problem at hand.  Here we go:
@@ -479,7 +486,7 @@ async sub search_issues ($self, $search) {
   state %inflate = (
     assignee => sub ($id)   {
       return { id   => { eq => $id    } } if defined $id;
-      return { null => JSON::true() };
+      return { null => Cpanel::JSON::XS::true() };
     },
     priority => sub ($i)    { return { eq => $i } },
     project  => sub ($id)   { return { id   => { eq => $id    } } },
