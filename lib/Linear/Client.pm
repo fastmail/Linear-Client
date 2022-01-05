@@ -52,6 +52,11 @@ has _http => (
   },
 );
 
+sub DEMOLISH ($self, @) {
+  my $loop = IO::Async::Loop->new();
+  $loop->remove($self->_http);
+}
+
 # Sure, this is a hack, but it's probably about the right level of
 # sophistication/hackiness for the problem at hand.  Here we go:
 #
