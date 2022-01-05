@@ -43,7 +43,9 @@ has _http => (
   lazy    => 1,
   default => sub ($self, @) {
     my $loop = IO::Async::Loop->new();
-    my $http = Net::Async::HTTP->new();
+    my $http = Net::Async::HTTP->new(
+      notifier_name => 'Linear::Client',
+    );
     $loop->add( $http );
 
     return $http;
