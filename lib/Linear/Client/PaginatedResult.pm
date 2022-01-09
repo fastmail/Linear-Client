@@ -33,7 +33,7 @@ async sub next_page ($self) {
 
   (ref $self)->new({
     client  => $self->client,
-    payload => $result,
+    raw_payload => $result,
     query_generator => $self->query_generator,
     extractor => $self->extractor,
   });
@@ -50,7 +50,7 @@ async sub prev_page ($self) {
 
   (ref $self)->new({
     client  => $self->client,
-    payload => $result,
+    raw_payload => $result,
     query_generator => $self->query_generator,
     extractor => $self->extractor,
   });
