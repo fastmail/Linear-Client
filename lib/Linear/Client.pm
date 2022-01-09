@@ -512,6 +512,7 @@ async sub search_issues ($self, $search) {
       issues => {
         args    => {
           filter => \%filter,
+          first  => 100,
           @rest,
         },
         select  => [
@@ -521,8 +522,9 @@ async sub search_issues ($self, $search) {
           nodes => {
             select => [
               qw(identifier title priority),
-              team  => [ qw(name id) ],
+              assignee => [ qw(displayName) ],
               state => [ qw(name type) ],
+              team  => [ qw(name id) ],
             ],
           },
         ],
