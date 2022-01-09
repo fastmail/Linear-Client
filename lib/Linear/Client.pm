@@ -512,6 +512,7 @@ async sub search_issues ($self, $search) {
       issues => {
         args    => {
           filter => \%filter,
+          first  => 100,
           @rest,
         },
         select  => [
