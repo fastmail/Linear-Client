@@ -1,0 +1,39 @@
+#!perl
+# linear-exporter
+
+use v5.28.0;
+use warnings;
+
+use Linear::Client;
+use Prometheus::Tiny;
+
+my $linear = Linear::Client->new({ auth_token => $ENV{LINEAR_AUTH} });
+
+my $prom = Prometheus::Tiny->new;
+
+my $page = $linear->search_issues({
+  state => { type => { nin => [ qw( canceled completed ) ] } }
+})->get;
+
+my %seen;
+my $pnum = 1;
+
+while ($page) {
+  for my $item ($page->payload->{nodes}->@*) {
+    my $user  = $item->{assignee}{displayName} // 'nobody';
+    my $team  = $item->{team}{name} =~ s/\s+\P{ASCII}+\z//r;
+
+    $prom->inc(linear_issues => {
+      user  => $user,
+      team  => $team,
+      state => $item->{state}{name},
+      stateType => $item->{state}{type},
+      urgent  => ($item->{priority} == 1 ? 'yes' : 'no'),
+    });
+  }
+
+  $page = $page->has_next_page ? $page->next_page->get : undef;
+}
+
+print $prom->format;
+
