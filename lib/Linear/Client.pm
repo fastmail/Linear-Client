@@ -194,6 +194,19 @@ cached_attr team => (
   },
 );
 
+cached_attr workspace_label => (
+  query => q[
+    query organization {
+      labels { nodes { id name } }
+    }
+  ],
+  xform => sub ($res) {
+    return {
+      map {; lc $_->{name} => $_ } $res->{data}{labels}{nodes}->@*
+    };
+  },
+);
+
 cached_attr user => (
   query => q[
     query User {
