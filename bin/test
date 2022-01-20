@@ -1,0 +1,20 @@
+#!perl
+use v5.34.0;
+use warnings;
+use experimental 'signatures';
+
+use Future::AsyncAwait;
+use Data::Dumper;
+
+use lib 'lib';
+
+use Linear::Client;
+
+my $client = Linear::Client->new({
+  auth_token => 'lin_api_yYsNJ7MBb17kBqVwrDvHGcGFWKB3KbbCohEIhQah',
+});
+
+#print Dumper await $client->fetch_issue("PLUMB-128");
+#print Dumper await $client->lookup_team("PLUMB");
+
+print Dumper await $client->fetch_issue('bak-278');
