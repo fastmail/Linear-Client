@@ -366,6 +366,7 @@ async sub plan_from_input ($self, $input) {
     my $target;
     ($target, $input) = split /\s+/, $input, 2;
     $issue_title = $input;
+    $target =~ s/:\z//;
 
     ($assignee_id, $team_id) = await $self->who_or_what($target);
   } else {
