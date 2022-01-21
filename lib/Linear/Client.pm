@@ -39,9 +39,10 @@ sub maybe_log ($self, $arg) {
 }
 
 has _http => (
-  is      => 'ro',
-  lazy    => 1,
-  default => sub ($self, @) {
+  is        => 'ro',
+  lazy      => 1,
+  predicate => 'has_http',
+  default   => sub ($self, @) {
     my $loop = IO::Async::Loop->new();
     my $http = Net::Async::HTTP->new(
       notifier_name => 'Linear::Client',
@@ -53,8 +54,7 @@ has _http => (
 );
 
 sub DEMOLISH ($self, @) {
-  my $loop = IO::Async::Loop->new();
-  $loop->remove($self->_http);
+  $self->_http->remove_from_parent if $self->has_http;
 }
 
 # Sure, this is a hack, but it's probably about the right level of
