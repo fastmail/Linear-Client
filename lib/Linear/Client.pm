@@ -369,6 +369,11 @@ async sub plan_from_input ($self, $input) {
     ($target, $input) = split /\s+/, $input, 2;
     $issue_title = $input;
 
+    my $human = await $self->lookup_user($target);
+    if($issue{priority} == 1 && !defined $human) {
+      die "Can't create an urgent issue without a human assignee";
+    }
+
     ($assignee_id, $team_id) = await $self->who_or_what($target);
   } else {
     die "Can't prepare a plan without ++ or >>\n";
