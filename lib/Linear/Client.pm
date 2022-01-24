@@ -368,6 +368,7 @@ async sub plan_from_input ($self, $input) {
     $issue_title = $input;
     $target =~ s/:\z//;
 
+    
     ($assignee_id, $team_id) = await $self->who_or_what($target);
   } else {
     die "Can't prepare a plan without ++ or >>\n";
@@ -382,6 +383,10 @@ async sub plan_from_input ($self, $input) {
   $issue{assigneeId} = $assignee_id if $assignee_id;
   $issue{stateId} = $stateId if $stateId;
 
+  if($issue{priority} && $issue{priority} == 1 && !$assignee_id) {
+    die "Can't create an urgent issue without a human assignee\n";
+  }
+  
   return \%issue;
 }
 
