@@ -179,4 +179,12 @@ plan_results_error(
   "can't assign to unknown person at a known team",
 );
 
+plan_results_error(
+  '>> igg make it stop raining (!)',
+  [
+    q{Can't create an urgent issue without a human assignee},
+  ],
+  "can't create an urgent issue without a human assignee"
+);
+
 done_testing;
