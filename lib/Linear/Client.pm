@@ -239,7 +239,7 @@ async sub fetch_issue ($self, $identifier) {
           identifier
           description
           assignee { displayName }
-          state { name id }
+          state { name type id }
           team { key }
           number
           labels { nodes { id name } }
