@@ -243,6 +243,7 @@ async sub fetch_issue ($self, $identifier) {
           team { key }
           number
           labels { nodes { id name } }
+          priority
           url
         }
       }
