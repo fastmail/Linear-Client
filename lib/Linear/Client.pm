@@ -250,7 +250,7 @@ async sub fetch_issue ($self, $identifier) {
 
   my $issue = $response->{data}{issue};
 
-  return unless $issue;
+  return undef unless $issue;
 
   $issue->{team} = $issue->{team}{key};
   $issue->{assignee} = $issue->{assignee}{displayName};
