@@ -144,17 +144,17 @@ my sub cached_attr ($name, %arg) {
 cached_attr project => (
   query => q[
     query Projects {
-      projects (filter: { state: {eq: "started"} }) { 
-        nodes { 
+      projects (filter: { state: {eq: "started"} }) {
+        nodes {
           icon
           name
           id
           description
           teams {  nodes { key } }
-          issues { nodes { 
-            title 
-            assignee { displayName } 
-            } 
+          issues { nodes {
+            title
+            assignee { displayName }
+            }
           }
         }
       }
@@ -168,7 +168,7 @@ cached_attr project => (
     for my $node ($res->{data}{projects}{nodes}->@*) {
       if ($node->{description} =~ /^#(\S*)/) {
         if (exists $dict->{$1}) {
-          my $projects_list = $dict->{$1}; 
+          my $projects_list = $dict->{$1};
           push(@$projects_list, $node);
         } else {
           my $projects_list = [];
@@ -228,6 +228,36 @@ cached_attr user => (
     return $dict;
   },
 );
+
+async sub fetch_issue ($self, $identifier) {
+  my $response = await $self->do_query(q[
+    query Issue ($id: String!) {
+      issue (id: $id) {
+        id
+        title
+        identifier
+        description
+        assignee { displayName }
+        state { name id }
+        team { key }
+        number
+        labels { nodes { id name } }
+        }
+      }
+    ],
+    { id => $identifier },
+  );
+
+  my $issue = $response->{data}{issue};
+
+  return unless $issue;
+
+  $issue->{team} = $issue->{team}{key};
+  $issue->{assignee} = $issue->{assignee}{displayName};
+  $issue->{labels} = $issue->{labels}{nodes};
+
+  return $issue;
+}
 
 my $LINESEP = qr{(
   # space or newlines
