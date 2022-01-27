@@ -144,17 +144,17 @@ my sub cached_attr ($name, %arg) {
 cached_attr project => (
   query => q[
     query Projects {
-      projects (filter: { state: {eq: "started"} }) { 
-        nodes { 
+      projects (filter: { state: {eq: "started"} }) {
+        nodes {
           icon
           name
           id
           description
           teams {  nodes { key } }
-          issues { nodes { 
-            title 
-            assignee { displayName } 
-            } 
+          issues { nodes {
+            title
+            assignee { displayName }
+            }
           }
         }
       }
@@ -168,7 +168,7 @@ cached_attr project => (
     for my $node ($res->{data}{projects}{nodes}->@*) {
       if ($node->{description} =~ /^#(\S*)/) {
         if (exists $dict->{$1}) {
-          my $projects_list = $dict->{$1}; 
+          my $projects_list = $dict->{$1};
           push(@$projects_list, $node);
         } else {
           my $projects_list = [];
@@ -247,11 +247,11 @@ async sub fetch_issue ($self, $identifier) {
     ],
     { id => $identifier },
   );
-  
+
   my $issue = $response->{data}{issue};
   $issue->{team} = $issue->{team}{key};
   $issue->{assignee} = $issue->{assignee}{displayName};
-  $issue->{labels} = $issue->{labels}{nodes}; 
+  $issue->{labels} = $issue->{labels}{nodes};
   return undef unless defined $issue->{data};
   return $issue;
 }
