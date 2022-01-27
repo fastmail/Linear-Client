@@ -230,18 +230,20 @@ cached_attr user => (
 );
 
 async sub fetch_issue ($self, $identifier) {
-  my $response = await $self->do_query(q[
-    query Issue ($id: String!) {
-      issue (id: $id) {
-        id
-        title
-        identifier
-        description
-        assignee { displayName }
-        state { name id }
-        team { key }
-        number
-        labels { nodes { id name } }
+  my $response = await $self->do_query(
+    q[
+      query Issue ($id: String!) {
+        issue (id: $id) {
+          id
+          title
+          identifier
+          description
+          assignee { displayName }
+          state { name id }
+          team { key }
+          number
+          labels { nodes { id name } }
+          url
         }
       }
     ],
@@ -605,7 +607,7 @@ async sub search_issues ($self, $search) {
           },
           nodes => {
             select => [
-              qw(identifier title priority),
+              qw(identifier title priority url),
               assignee => [ qw(displayName) ],
               state => [ qw(name type) ],
               team  => [ qw(name id) ],
