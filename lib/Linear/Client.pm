@@ -249,10 +249,13 @@ async sub fetch_issue ($self, $identifier) {
   );
 
   my $issue = $response->{data}{issue};
+
+  return unless $issue;
+
   $issue->{team} = $issue->{team}{key};
   $issue->{assignee} = $issue->{assignee}{displayName};
   $issue->{labels} = $issue->{labels}{nodes};
-  return undef unless defined $issue->{data};
+
   return $issue;
 }
 
