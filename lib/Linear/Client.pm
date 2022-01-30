@@ -312,6 +312,7 @@ async sub who_or_what ($self, $spec) {
 
     if ($helper) {
       $username = $helper->normalize_username($username) // $username;
+      $teamname = $helper->normalize_team_name($teamname) // $teamname;
     }
 
     $user = await $self->lookup_user($username);
