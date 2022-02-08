@@ -54,7 +54,7 @@ has _http => (
 );
 
 sub DEMOLISH ($self, @) {
-  $self->_http->remove_from_parent if $self->has_http;
+  $self->_http->remove_from_parent if $self->has_http && $self->_http;
 }
 
 # Sure, this is a hack, but it's probably about the right level of
