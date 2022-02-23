@@ -46,6 +46,7 @@ has _http => (
     my $loop = IO::Async::Loop->new();
     my $http = Net::Async::HTTP->new(
       notifier_name => 'Linear::Client',
+      timeout       => 60,
     );
     $loop->add( $http );
 
