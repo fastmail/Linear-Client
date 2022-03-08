@@ -152,6 +152,17 @@ plan_results_ok(
   "issue for discussion",
 );
 
+plan_results_ok(
+  ">> rasha here's some code\n```code block```\n```code block```",
+  superhashof({
+    title       => "here's some code",
+    description => "```\ncode block\n```\n\n```\ncode block\n```\n",
+    teamId      => $DEFAULT_TEAM_ID,
+    assigneeId  => $TEST_USERS{rasha}{id},
+  }),
+  "code blocks in description display correctly",
+);
+
 # TODO: Tests to write next...
 #   ++ title
 #   ++ title flags

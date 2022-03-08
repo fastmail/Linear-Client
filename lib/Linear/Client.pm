@@ -382,6 +382,22 @@ async sub plan_from_input ($self, $input) {
 
   $input =~ s/\A\s+//; # Trim leading whitespace just in case.
 
+  # If there is a code block between two sets of three backticks, make sure they
+  # are on their own lines
+  if ($input =~ /```/) {
+    my $occurences = $input =~ tr/`//;
+    # make sure all backticks are in pairs
+    if ($occurences % 2 == 0) {
+      my @split = split /```/, $input;
+       for my $i (0 .. $#split) {
+         if ($i % 2) {
+           $split[$i] = "```\n$split[$i]\n```\n";
+         }
+       }
+      $input = join("", @split);
+    }
+  }
+
   # set description if given
   if ($input =~ $LINESEP) {
     ($input, $issue{description}) = split /$LINESEP/, $input, 2;
