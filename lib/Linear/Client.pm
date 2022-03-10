@@ -237,6 +237,8 @@ async sub fetch_issue ($self, $identifier) {
           id
           title
           identifier
+          createdAt
+          updatedAt
           description
           assignee { displayName }
           state { name type id }
@@ -480,6 +482,8 @@ async sub create_issue ($self, $plan) {
           issue {
             id
             identifier
+            createdAt
+            updatedAt
             title
             team { id name }
             priority
@@ -609,10 +613,11 @@ async sub search_issues ($self, $search) {
           },
           nodes => {
             select => [
-              qw(identifier title priority url),
+              qw(identifier title priority url createdAt updatedAt),
               assignee => [ qw(displayName) ],
               state => [ qw(name type) ],
               team  => [ qw(name id) ],
+              project => [ qw(name id) ],
             ],
           },
         ],
