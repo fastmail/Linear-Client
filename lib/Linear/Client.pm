@@ -367,6 +367,8 @@ async sub plan_from_input ($self, $input) {
 
   my $issue_title;
   my $stateId;
+  my $gitlab_url;
+  my $gitlab_title;
 
   my $plusplus = qr{\+\+};
   my $angle = qr{>>};
@@ -381,6 +383,12 @@ async sub plan_from_input ($self, $input) {
   # set priority if given
   if ($input =~ s/\s*\(!\)//) {
     $issue{priority} = 1;
+  };
+
+  # do we have a GitLab MR?
+  if ($input =~ /hm!(\d*)/ or $issue{description} =~ /hm!(\d*)/) {
+    $gitlab_url = "https://gitlab.fm/fastmail/hm/-/merge_requests/$1";
+    $gitlab_title = "hm!".$1;
   };
 
   my ($assignee_id, $team_id);
@@ -414,6 +422,8 @@ async sub plan_from_input ($self, $input) {
   }
 
   $issue{title}  = $issue_title;
+  $issue{attachmentUrl} = $gitlab_url if $gitlab_url;
+  $issue{attachmentTitle} = $gitlab_title if $gitlab_title;
   $issue{teamId} = $team_id;
   $issue{assigneeId} = $assignee_id if $assignee_id;
   $issue{stateId} = $stateId if $stateId;
@@ -457,8 +467,37 @@ async sub do_query {
   return decode_json($res->decoded_content(charset => undef))
 }
 
-async sub create_issue ($self, $plan) {
+async sub add_attachment ($self, $attachment) {
   await $self->do_query(
+    q[
+    mutation AttachmentCreate (
+      $issueId: String!,
+      $title: String!,
+      $url: String!,
+      $iconUrl: String,
+    ) {
+      attachmentCreate (
+        input: {
+          issueId: $issueId
+          title: $title
+          url: $url
+          iconUrl: $iconUrl
+        }) {
+          success
+          attachment {
+            id
+            url
+            title
+          }
+        }
+      }
+     ],
+     $attachment,
+  );
+}
+
+async sub create_issue ($self, $plan) {
+  my $res = await $self->do_query(
     q[
       mutation IssueCreate (
         $assigneeId: String,
@@ -498,6 +537,16 @@ async sub create_issue ($self, $plan) {
     ],
     $plan,
   );
+
+  if($plan->{attachmentUrl} && $res->{data}{issueCreate}{success}) {
+    my %attachment;
+    $attachment{issueId} = $res->{data}{issueCreate}{issue}{id};
+    $attachment{title} = $plan->{attachmentTitle};
+    $attachment{url} = $plan->{attachmentUrl};
+    $attachment{iconUrl} = "https://about.gitlab.com/images/press/logo/png/gitlab-icon-rgb.png";
+
+    await $self->add_attachment(\%attachment);
+  };
 }
 
 async sub search_issues ($self, $search) {
