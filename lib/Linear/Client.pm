@@ -384,6 +384,7 @@ async sub plan_from_input ($self, $input) {
   };
 
   my ($assignee_id, $team_id);
+  my $input_err = '';
 
   # if ++ or if >>
   if ($input =~ s/\A$plusplus\s+//) {
@@ -397,6 +398,7 @@ async sub plan_from_input ($self, $input) {
              ? $helper->team_id_for_username($username)
              : undef;
 
+    $input_err = " (could not determine team for $username)" unless $team_id;
   } elsif ($input =~ s/\A$angle\s+//) {
     # if >> split into target/input, and assign target accordingly (user, team)
     my $target;
@@ -405,12 +407,13 @@ async sub plan_from_input ($self, $input) {
     $target =~ s/:\z//;
 
     ($assignee_id, $team_id) = await $self->who_or_what($target);
+    $input_err = " (could not determine team for '$target')" unless $team_id;
   } else {
     die "Can't prepare a plan without ++ or >>\n";
   }
 
   unless ($team_id) {
-    die "can't create plan without team id\n";
+    die "can't create plan without team id$input_err\n";
   }
 
   $issue{title}  = $issue_title;
