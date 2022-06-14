@@ -153,10 +153,14 @@ plan_results_ok(
 );
 
 plan_results_ok(
-  ">> rasha here's some code\n```code block```\n```code block```",
+  <<~'END',
+  >> rasha here's some code
+  ```code block```
+  ```code block```
+  END
   superhashof({
     title       => "here's some code",
-    description => "```\ncode block\n```\n\n```\ncode block\n```\n",
+    description => "```\ncode block\n```\n\n```\ncode block\n```\n\n",
     teamId      => $DEFAULT_TEAM_ID,
     assigneeId  => $TEST_USERS{rasha}{id},
   }),
