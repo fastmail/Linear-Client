@@ -382,25 +382,32 @@ async sub plan_from_input ($self, $input) {
 
   $input =~ s/\A\s+//; # Trim leading whitespace just in case.
 
-  # If there is a code block between two sets of three backticks, make sure they
-  # are on their own lines
-  if ($input =~ /```/) {
-    my $occurences = $input =~ tr/`//;
-    # make sure all backticks are in pairs
-    if ($occurences % 2 == 0) {
-      my @split = split /```/, $input;
-       for my $i (0 .. $#split) {
-         if ($i % 2) {
-           $split[$i] = "```\n$split[$i]\n```\n";
-         }
-       }
-      $input = join("", @split);
-    }
-  }
-
   # set description if given
   if ($input =~ $LINESEP) {
-    ($input, $issue{description}) = split /$LINESEP/, $input, 2;
+    ($input, my $description) = split /$LINESEP/, $input, 2;
+
+    $issue{description} = $description;
+
+    # If there is a code block between two sets of three backticks, make sure
+    # they are on their own lines
+    if ($description =~ /```/) {
+      if ($description =~ /`{4}/) {
+        die "Don't use more than three backticks in a row! It's confusing.\n";
+      }
+
+      # even hunks are non-code-blocks
+      # odd  hunks are code blocks
+      my @hunks = split /```\n?/, $description;
+      s/\n+\z// for @hunks; # Iffy. -- rjbs, 2022-06-14
+
+      $issue{description} = q{}; # start with empty string
+      for my $i (0 .. $#hunks) {
+        $issue{description} .= $i % 2 == 0 ? $hunks[$i]
+                                           : "```\n$hunks[$i]\n```\n";
+      }
+    }
+
+    $issue{description} =~ s/\n+\z/\n/;
   };
 
   # set priority if given
