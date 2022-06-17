@@ -12,7 +12,8 @@ use Linear::Client;
 
 my %TEST_TEAMS = (
   igg => { id => 'team-IGG', key => 'IGG', name => 'Eagles' },
-  ste => { id => 'team-STE', key => 'STE', name => 'Steelers' },
+  ste => { id => 'team-STE', key => 'STE', name => 'Steelers',
+           states => { nodes => [ { name => 'To Discuss', id => 99 } ] } },
 );
 
 my %TEST_USERS = (
@@ -137,6 +138,18 @@ plan_results_ok(
     priority    => 1, # 1 is always urgent
   }),
   "user, no team, description, urgent!!",
+);
+
+plan_results_ok(
+  '>> rjbs@ste discuss your problems :phone:',
+  superhashof({
+    title       => "discuss your problems",
+    description => q{},
+    teamId      => $TEST_TEAMS{ste}{id},
+    assigneeId  => $TEST_USERS{rjbs}{id},
+    stateId     => 99
+  }),
+  "issue for discussion",
 );
 
 # TODO: Tests to write next...

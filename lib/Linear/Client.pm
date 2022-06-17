@@ -4,6 +4,8 @@ use warnings;
 package Linear::Client;
 use Moose;
 
+use utf8;
+
 # ABSTRACT: a client for Linear, the project management tool
 
 use Cpanel::JSON::XS;
@@ -185,7 +187,13 @@ cached_attr project => (
 cached_attr team => (
   query => q[
     query Teams {
-      teams { nodes { id key name labels { nodes { id name color } } states { nodes { id name color } }  } }
+      teams {
+        nodes {
+          id key name
+          labels { nodes { id name color } }
+          states { nodes { id name color } }
+        }
+      }
     }
   ],
   xform => sub ($res) {
@@ -415,6 +423,20 @@ async sub plan_from_input ($self, $input) {
 
   unless ($team_id) {
     die "can't create plan without team id$input_err\n";
+  }
+
+  if ($issue_title =~ s/(\s*( :phone: | ☎️  ))+\z//x) {
+    my $teams   = await $self->teams;
+    my ($team)  = grep {; $_->{id} eq $team_id } values %$teams;
+
+    die "Something went wrong finding the team!\n" unless $team;
+
+    my ($state) = grep {; $_->{name} eq 'To Discuss' }
+                  $team->{states}{nodes}->@*;
+
+    die "That team doesn't have a To Discuss state\n" unless $state;
+
+    $issue{stateId} = $state->{id};
   }
 
   $issue{title}  = $issue_title;
