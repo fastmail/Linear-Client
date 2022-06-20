@@ -647,7 +647,7 @@ async sub search_issues ($self, $search) {
               assignee => [ qw(displayName) ],
               state => [ qw(name type) ],
               team  => [ qw(name id) ],
-              project => [ qw(name id) ],
+              project => [ qw(name id icon) ],
             ],
           },
         ],
