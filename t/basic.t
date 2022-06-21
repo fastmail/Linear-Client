@@ -152,6 +152,69 @@ plan_results_ok(
   "issue for discussion",
 );
 
+plan_results_ok(
+  <<~'END',
+  >> rasha here's some code
+  ```code block```
+  ```code block```
+  END
+  superhashof({
+    title       => "here's some code",
+    description => "```\ncode block\n```\n```\ncode block\n```\n",
+    teamId      => $DEFAULT_TEAM_ID,
+    assigneeId  => $TEST_USERS{rasha}{id},
+  }),
+  "code blocks: adjust fences-without-newlines to have them (for Linear)",
+);
+
+plan_results_ok(
+  <<~'END',
+  >> rasha here's some code
+  ```
+  code block
+  ```
+  ```
+  code block
+  ```
+  END
+  superhashof({
+    title       => "here's some code",
+    description => "```\ncode block\n```\n```\ncode block\n```\n",
+    teamId      => $DEFAULT_TEAM_ID,
+    assigneeId  => $TEST_USERS{rasha}{id},
+  }),
+  "code blocks: we don't introduce unwanted extra newlines",
+);
+
+plan_results_ok(
+  <<~'END',
+  >> rjbs I am ```so``` clever!
+  Look at me!
+  END
+  superhashof({
+    title       => "I am ```so``` clever!",
+    description => "Look at me!\n",
+    teamId      => $DEFAULT_TEAM_ID,
+    assigneeId  => $TEST_USERS{rjbs}{id},
+  }),
+  "code blocks: triple backticks mean nothing in issue title",
+);
+
+plan_results_error(
+  <<~'END',
+  >> rjbs This will not be fine
+  I have a
+  ````
+  very
+  ````
+  fenced code block
+  END
+  [
+    re(qr{more than three backticks}),
+  ],
+  "code blocks: three backticks is just right, four is too many",
+);
+
 # TODO: Tests to write next...
 #   ++ title
 #   ++ title flags
