@@ -411,7 +411,7 @@ async sub plan_from_input ($self, $input) {
   };
 
   # set priority if given
-  if ($input =~ s/\s*\(!\)//) {
+  if ($input =~ s/\s*( \(!\) | :fire: | 🔥 )//x) {
     $issue{priority} = 1;
   };
 
