@@ -448,7 +448,7 @@ async sub plan_from_input ($self, $input) {
     die "can't create plan without team id$input_err\n";
   }
 
-  if ($issue_title =~ s/(\s*( :phone: | ☎️  ))+\z//x) {
+  if ($issue_title =~ s/(\s*( \(\?\) | :phone: | ☎️  ))+\z//x) {
     my $teams   = await $self->teams;
     my ($team)  = grep {; $_->{id} eq $team_id } values %$teams;
 

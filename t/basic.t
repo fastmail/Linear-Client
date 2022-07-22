@@ -153,6 +153,19 @@ plan_results_ok(
 );
 
 plan_results_ok(
+  '>> rjbs@ste discuss your problems (?)',
+  superhashof({
+    title       => "discuss your problems",
+    description => q{},
+    teamId      => $TEST_TEAMS{ste}{id},
+    assigneeId  => $TEST_USERS{rjbs}{id},
+    stateId     => 99
+  }),
+  "issue for discussion",
+);
+
+
+plan_results_ok(
   <<~'END',
   >> rasha here's some code
   ```code block```
