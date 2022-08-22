@@ -605,6 +605,11 @@ async sub search_issues ($self, $search) {
       # This is a mess, too... -- rjbs, 2021-12-20
       return (labels => { name => { eq => $label } });
     },
+    only_current => sub ($active) {
+      return $active
+        ? (cycle => { isActive => { eq => Cpanel::JSON::XS::true() } })
+        : ();
+    },
   );
 
   state %inflate = (
