@@ -73,6 +73,15 @@ sub plan_results_error {
 }
 
 plan_results_ok(
+  "++ do a thing with hm!1234",
+  superhashof({
+      attachmentUrl => "https://gitlab.fm/fastmail/hm/-/merge_requests/1234",
+      attachmentTitle => "hm!1234",
+    }),
+  "create issue with attachment",
+);
+
+plan_results_ok(
   "++ eat more scrapple",
   superhashof({
     title       => "eat more scrapple",
