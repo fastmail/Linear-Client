@@ -410,11 +410,6 @@ async sub plan_from_input ($self, $input) {
     $issue{description} =~ s/\n+\z/\n/;
   }
 
-  # set priority if given
-  if ($input =~ s/\s*( \(!\) | :fire: | 🔥 )//x) {
-    $issue{priority} = 1;
-  }
-
   my ($assignee_id, $team_id);
   my $input_err = '';
 
@@ -448,6 +443,11 @@ async sub plan_from_input ($self, $input) {
     die "can't create plan without team id$input_err\n";
   }
 
+  # set priority if given
+  if ($issue_title =~ s/\s*( \(!\) | :fire: | 🔥 )//x) {
+    $issue{priority} = 1;
+  }
+
   if ($issue_title =~ s/(\s*( \(\?\) | :phone: | ☎️  ))+\z//x) {
     my $teams   = await $self->teams;
     my ($team)  = grep {; $_->{id} eq $team_id } values %$teams;
@@ -461,6 +461,7 @@ async sub plan_from_input ($self, $input) {
 
     $issue{stateId} = $state->{id};
   }
+
 
   $issue{title}  = $issue_title;
   $issue{teamId} = $team_id;
