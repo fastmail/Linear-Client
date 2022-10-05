@@ -408,12 +408,12 @@ async sub plan_from_input ($self, $input) {
     }
 
     $issue{description} =~ s/\n+\z/\n/;
-  };
+  }
 
   # set priority if given
   if ($input =~ s/\s*( \(!\) | :fire: | 🔥 )//x) {
     $issue{priority} = 1;
-  };
+  }
 
   my ($assignee_id, $team_id);
   my $input_err = '';
