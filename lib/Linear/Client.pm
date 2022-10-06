@@ -149,11 +149,12 @@ cached_attr project => (
     query Projects {
       projects (filter: { state: {eq: "started"} }) {
         nodes {
+          id
           icon
           name
-          id
+          slugId
           description
-          teams {  nodes { key } }
+          teams { nodes { key } }
           issues { nodes {
             title
             assignee { displayName }
