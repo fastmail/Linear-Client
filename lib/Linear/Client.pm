@@ -164,24 +164,10 @@ cached_attr project => (
       }
     }
   ],
-  # any code that calls lookup_project(x) will need to throw an error if the
-  # returned list is > 1. This would mean that we have more than one project
-  # with the same identifier.
   xform => sub ($res) {
-    my $dict = {};
-    for my $node ($res->{data}{projects}{nodes}->@*) {
-      if ($node->{description} =~ /^#(\S*)/) {
-        if (exists $dict->{$1}) {
-          my $projects_list = $dict->{$1};
-          push(@$projects_list, $node);
-        } else {
-          my $projects_list = [];
-          push(@$projects_list, $node);
-          $dict->{$1} = $projects_list;
-        };
-      };
+    return {
+      map {; $_->{slugId} => $_ } $res->{data}{projects}{nodes}->@*
     };
-    return $dict;
   },
 );
 
