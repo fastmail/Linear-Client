@@ -23,6 +23,11 @@ my %TEST_USERS = (
   rjbs  => { id => 'user-234', displayName => 'rjbs',  name => 'Rik S' },
 );
 
+my %TEST_PROJECTS = (
+  cake    => { id => 'pCake',    slugId => 'HHHH', name => 'Cake Week'    },
+  biscuit => { id => 'pBiscuit', slugId => 'ZZZZ', name => 'Biscuit Week' },
+);
+
 my $AUTH_USER_ID  = 'user-123';
 my $DEFAULT_TEAM_ID  = 'team-IGG';
 
@@ -34,6 +39,12 @@ package Linear::TestHelper {
   sub normalize_username   ($self, $username)  { $username }
   sub team_id_for_username ($self, $username)  { $DEFAULT_TEAM_ID }
   sub normalize_team_name  ($self, $team_name) { $team_name }
+
+  sub project_ids_for_tag ($self, $tag) {
+    return Future->done('HHHH') if $tag eq 'hash';
+    return Future->done('DUPE', 'dupe') if $tag eq 'dupe';
+    return Future->done;
+  }
 }
 
 my $client = Linear::TestClient->new({
@@ -44,6 +55,7 @@ my $client = Linear::TestClient->new({
 
   teams => \%TEST_TEAMS,
   users => \%TEST_USERS,
+  projects => \%TEST_PROJECTS,
 });
 
 sub plan_results_ok {
@@ -163,7 +175,7 @@ plan_results_ok(
     assigneeId  => $TEST_USERS{rjbs}{id},
     stateId     => 99
   }),
-  "issue for discussion",
+  "issue for discussion with :phone:",
 );
 
 plan_results_ok(
@@ -175,9 +187,50 @@ plan_results_ok(
     assigneeId  => $TEST_USERS{rjbs}{id},
     stateId     => 99
   }),
-  "issue for discussion",
+  "issue for discussion with (?)",
 );
 
+plan_results_ok(
+  '>> rjbs@ste ask about hash (?) ##hash',
+  superhashof({
+    title       => "ask about hash",
+    description => q{},
+    teamId      => $TEST_TEAMS{ste}{id},
+    assigneeId  => $TEST_USERS{rjbs}{id},
+    stateId     => 99,
+    projectId   => 'pCake',
+  }),
+  "(?) and ##hash",
+);
+
+plan_results_ok(
+  '>> rjbs@ste ask about hash ##hash (?)',
+  superhashof({
+    title       => "ask about hash",
+    description => q{},
+    teamId      => $TEST_TEAMS{ste}{id},
+    assigneeId  => $TEST_USERS{rjbs}{id},
+    stateId     => 99,
+    projectId   => 'pCake',
+  }),
+  "##hash and (?)",
+);
+
+plan_results_error(
+  ">> rjbs duplicate project ##dupe",
+  [
+    re(qr{more than one}),
+  ],
+  "bad project tag: used twice",
+);
+
+plan_results_error(
+  ">> rjbs duplicate project ##bogus",
+  [
+    re(qr{no project}),
+  ],
+  "bad project tag: unknown",
+);
 
 plan_results_ok(
   <<~'END',

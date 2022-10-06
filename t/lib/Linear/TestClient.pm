@@ -25,7 +25,7 @@ async sub get_authenticated_user ($self) {
   $self->authenticated_user;
 }
 
-for my $attr (qw( label state user team )) {
+for my $attr (qw( label state user team project )) {
   my $plural = "${attr}s";
 
   my $reader    = "_test_$plural";
