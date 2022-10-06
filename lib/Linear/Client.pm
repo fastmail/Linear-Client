@@ -186,7 +186,7 @@ cached_attr team => (
   xform => sub ($res) {
     return {
       map {; lc $_->{key} => $_ } $res->{data}{teams}{nodes}->@*
-    };
+    }
   },
 );
 
@@ -199,7 +199,7 @@ cached_attr workspace_label => (
   xform => sub ($res) {
     return {
       map {; lc $_->{name} => $_ } $res->{data}{labels}{nodes}->@*
-    };
+    }
   },
 );
 
@@ -349,7 +349,7 @@ async sub lookup_team_label ($self, $team_key, $label_name) {
     }
   }
   die "No label $label_name found for team $team_key";
-};
+}
 
 async sub plan_from_input ($self, $input) {
   my %issue = (
