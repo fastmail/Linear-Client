@@ -506,6 +506,31 @@ async sub do_query {
   return decode_json($res->decoded_content(charset => undef))
 }
 
+async sub create_comment ($self, $comment_data) {
+  await $self->do_query(
+    q[
+      mutation CommentCreateInput (
+        $body: String,
+        $issueId: String!,
+      ) {
+        commentCreate(
+          input: {
+            body: $body
+            issueId: $issueId
+          }
+        ) {
+          success
+            comment {
+              id
+              url
+           }
+         }
+      }
+    ],
+    $comment_data,
+  );
+}
+
 async sub create_issue ($self, $plan) {
   await $self->do_query(
     q[
