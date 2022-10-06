@@ -147,7 +147,7 @@ my sub cached_attr ($name, %arg) {
 cached_attr project => (
   query => q[
     query Projects {
-      projects (filter: { state: {eq: "started"} }) {
+      projects (filter: { state: { nin: ["completed" ]} }) {
         nodes {
           id
           icon
