@@ -430,12 +430,7 @@ async sub plan_from_input ($self, $input) {
     die "can't create plan without team id$input_err\n";
   }
 
-  # set priority if given
-  if ($issue_title =~ s/\s*( \(!\) | :fire: | 🔥 )//x) {
-    $issue{priority} = 1;
-  }
-
-  if ($issue_title =~ s/(\s*( \(\?\) | :phone: | ☎️  ))+\z//x) {
+  my $discuss_cb = async sub ($issue, $) {
     my $teams   = await $self->teams;
     my ($team)  = grep {; $_->{id} eq $team_id } values %$teams;
 
@@ -444,11 +439,68 @@ async sub plan_from_input ($self, $input) {
     my ($state) = grep {; $_->{name} eq 'To Discuss' }
                   $team->{states}{nodes}->@*;
 
-    die "That team doesn't have a To Discuss state\n" unless $state;
+    die "That team ($team_id) doesn't have a To Discuss state\n" unless $state;
 
-    $issue{stateId} = $state->{id};
+    $issue->{stateId} = $state->{id};
+  };
+
+  my $project_cb = async sub ($issue, $tag) {
+    return unless $self->helper;
+
+    $tag =~ s/\A##//;
+
+    my @project_ids = await $self->helper->project_ids_for_tag($tag);
+
+    die "more than one project has the tag ##$tag\n" if @project_ids > 1;
+    die "no project has the tag ##$tag\n" if @project_ids == 0;
+
+    my $projects = await $self->projects;
+
+    my ($project) = grep {; $_->{slugId} eq $project_ids[0]
+                         || $_->{id}     eq $project_ids[0] } values %$projects;
+
+    unless ($project) {
+      die "the tag ##$tag turned into project id $project_ids[0], which can't be found\n";
+    }
+
+    $issue->{projectId} = $project->{id};
+
+    return;
+  };
+
+  my @flag_checks = (
+    [ '(!)'     => async sub ($issue, $) { $issue->{priority} = 1 } ],
+    [ ':fire:'  => async sub ($issue, $) { $issue->{priority} = 1 } ],
+    [ '🔥'      => async sub ($issue, $) { $issue->{priority} = 1 } ],
+
+    [ '(?)'     => $discuss_cb ],
+    [ ':phone:' => $discuss_cb ],
+    [ '☎️'       => $discuss_cb ],
+
+    [ qr/##[-0-9a-zA-Z]+/ => $project_cb ],
+  );
+
+  my @hunks = split /(\s+)/, $issue_title;
+  HUNK: while (defined (my $hunk = pop @hunks)) {
+    for my $spec (@flag_checks) {
+      my ($flag, $cb) = @$spec;
+      my $pat = ref $flag ? $flag : quotemeta $flag;
+
+      if ($hunk =~ /\A$pat\z/) {
+        await $cb->(\%issue, $hunk);
+
+        # Drop the space that came before this hunk.
+        pop @hunks;
+
+        next HUNK;
+      }
+    }
+
+    push @hunks, $hunk;
+    last HUNK;
   }
 
+  $issue_title = join q{}, @hunks;
 
   $issue{title}  = $issue_title;
   $issue{teamId} = $team_id;
