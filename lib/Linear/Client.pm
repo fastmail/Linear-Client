@@ -594,6 +594,32 @@ async sub create_issue ($self, $plan) {
   );
 }
 
+async sub post_project_update ($self, $project_id, $arg) {
+  await $self->do_query(
+    q[
+      mutation ProjectUpdateCreate (
+        $projectId: String!,
+        $body: String,
+        $health: ProjectUpdateHealthType,
+      ) {
+        projectUpdateCreate (
+          input: {
+            projectId: $projectId
+            body: $body
+            health: $health
+          }
+        ) {
+          success
+        }
+      }
+    ],
+    {
+      %$arg,
+      projectId => $project_id,
+    },
+  );
+}
+
 async sub search_issues ($self, $search) {
   # The classic LiquidPlanner search buddy behavior here was:
   #   parse search  :  text  -> hunks
