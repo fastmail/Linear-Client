@@ -24,8 +24,22 @@ my %TEST_USERS = (
 );
 
 my %TEST_PROJECTS = (
-  cake    => { id => 'pCake',    slugId => 'HHHH', name => 'Cake Week'    },
-  biscuit => { id => 'pBiscuit', slugId => 'ZZZZ', name => 'Biscuit Week' },
+  cake    => {
+    id     => 'pCake',
+    slugId => 'ZZZZ',
+    name   => 'Cake Week',
+    teams   => [
+      { id => $TEST_TEAMS{igg}{id} },
+    ],
+  },
+  biscuit => {
+    id      => 'pBiscuit',
+    slugId  => 'HHHH',
+    name    => 'Biscuit Week',
+    teams   => [
+      { id => $TEST_TEAMS{ste}{id} },
+    ],
+  },
 );
 
 my $AUTH_USER_ID  = 'user-123';
@@ -198,7 +212,7 @@ plan_results_ok(
     teamId      => $TEST_TEAMS{ste}{id},
     assigneeId  => $TEST_USERS{rjbs}{id},
     stateId     => 99,
-    projectId   => 'pCake',
+    projectId   => 'pBiscuit',
   }),
   "(?) and ##hash",
 );
@@ -211,7 +225,7 @@ plan_results_ok(
     teamId      => $TEST_TEAMS{ste}{id},
     assigneeId  => $TEST_USERS{rjbs}{id},
     stateId     => 99,
-    projectId   => 'pCake',
+    projectId   => 'pBiscuit',
   }),
   "##hash and (?)",
 );
@@ -230,6 +244,14 @@ plan_results_error(
     re(qr{no project}),
   ],
   "bad project tag: unknown",
+);
+
+plan_results_error(
+  '>> rjbs@igg duplicate project ##hash',
+  [
+    re(qr{isn't part of}),
+  ],
+  "bad project tag: team not in project",
 );
 
 plan_results_ok(

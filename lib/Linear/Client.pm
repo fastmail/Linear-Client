@@ -462,6 +462,10 @@ async sub plan_from_input ($self, $input) {
       die "the tag ##$tag turned into project id $project_ids[0], which can't be found\n";
     }
 
+    unless (grep {; $_->{id} eq $team_id } $project->{teams}->@*) {
+      die "the target team isn't part of the project ##$tag\n";
+    }
+
     $issue->{projectId} = $project->{id};
 
     return;
