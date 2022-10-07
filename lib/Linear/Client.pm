@@ -154,20 +154,19 @@ cached_attr project => (
           name
           slugId
           description
-          teams { nodes { key } }
-          issues { nodes {
-            title
-            assignee { displayName }
-            }
-          }
+          teams { nodes { id key } }
         }
       }
     }
   ],
   xform => sub ($res) {
-    return {
-      map {; $_->{slugId} => $_ } $res->{data}{projects}{nodes}->@*
-    };
+    my %map;
+    for my $project ($res->{data}{projects}{nodes}->@*) {
+      $map{ $project->{slugId} } = $project;
+      $project->{teams} = $project->{teams}{nodes};
+    }
+
+    return \%map;
   },
 );
 
