@@ -543,8 +543,10 @@ async sub do_query {
     },
   );
 
-  return Future->fail('Linear API failure', res => $res->as_string)
-    unless $res->is_success;
+  unless ($res->is_success) {
+    warn $res->as_string; # Terrible -- rjbs, 2022-10-06
+    die "failure with Linear API";
+  }
 
   return decode_json($res->decoded_content(charset => undef))
 }
