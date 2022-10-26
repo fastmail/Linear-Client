@@ -1,0 +1,51 @@
+#!perl
+use v5.24.0;
+use warnings;
+
+use experimental 'signatures';
+
+use Future::AsyncAwait;
+
+use lib 'lib';
+
+use Linear::Client;
+
+binmode STDOUT, ":utf8";
+
+my $auth = $ENV{LINEAR_AUTH} // die "no LINEAR_AUTH env var set!\n";
+
+my $client = Linear::Client->new({
+  auth_token => $auth,
+});
+
+async sub get_project {
+  my ($key) = @_;
+  my $project = await $client->lookup_project($key);
+
+  if ($project) {
+    say "$project->{id} $project->{name}";
+  } else {
+    say "No such project.";
+  }
+}
+
+async sub list_projects {
+  my $projects = await $client->projects;
+
+  for my $project_key (sort keys %$projects) {
+    printf "%-12s - %s - %s\n",
+      $project_key,
+      $projects->{$project_key}{id},
+      $projects->{$project_key}{name};
+  }
+
+  return;
+}
+
+if (@ARGV == 1) {
+  await get_project($ARGV[0]);
+} elsif (@ARGV) {
+  die "too many arguments!\n";
+} else {
+  await list_projects;
+}
