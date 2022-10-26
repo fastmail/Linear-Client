@@ -182,7 +182,13 @@ cached_attr project => (
     teams => [ nodes => [ qw( id key ) ] ],
   ],
   node_mapper => sub ($nodes) {
-    return { map {; $_->{slugId} => $_ } @$nodes }
+    my %dict;
+    for my $node (@$nodes) {
+      $dict{ $node->{slugId} } = $node;
+      $node->{teams} = $node->{teams}{nodes};
+    }
+
+    return \%dict;
   },
 );
 
