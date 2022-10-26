@@ -788,5 +788,57 @@ async sub search_issues ($self, $search) {
   });
 }
 
+async sub do_paginated_query ($self, $arg) {
+  # query_name, query_args, nodes_select
+
+  my $query_name   = $arg->{query_name};
+  my $query_args   = $arg->{query_args};
+  my $nodes_select = $arg->{nodes_select};
+
+  my $gen = sub ($pager, @rest) {
+    unless (
+      @rest == 0
+      ||
+      @rest == 2 && ($rest[0] eq 'after' || $rest[0] eq 'before')
+    ) {
+      die "confused! [@rest]";
+    }
+
+    # XXX: I am deeply unsure about the byte/text boundary here and will need
+    # to think about it with my thinking at on. -- rjbs, 2021-11-19
+    my $selection = GraphQL::Miranda->selection_set(
+      $query_name => {
+        args    => {
+          # filter => \%filter,
+          first  => 50, # parameterize this?
+          %$query_args,
+          @rest,
+        },
+        select  => [
+          pageInfo => {
+            select => [ qw( startCursor endCursor hasNextPage hasPreviousPage ) ],
+          },
+          nodes => {
+            select => $nodes_select,
+          },
+        ],
+      },
+    );
+
+    return "query {\n" . $selection->as_string("  ") . "\n}\n";
+  };
+
+  my $xtract  = sub { $_[0]{data}{$query_name} };
+
+  my $payload = await $self->do_query($self->$gen);
+
+  return Linear::Client::PaginatedResult->new({
+    client  => $self,
+    raw_payload     => $payload,
+    query_generator => $gen,
+    extractor       => $xtract,
+  });
+}
+
 no Moose;
 1;
