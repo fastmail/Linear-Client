@@ -84,12 +84,31 @@ has _cache_guts => (
   default => sub {  {}  },
 );
 
-my sub cached_attr ($name, %arg) {
-  my $query = $arg{query};
-  Carp::confess("no query given") unless $query;
+async sub _get_all_page_nodes ($self, $page_f, $nodes = []) {
+  my $page = await $page_f;
+  push @$nodes, $page->payload->{nodes}->@*;
 
-  my $xform = $arg{xform};
-  Carp::confess("no xform given") unless $xform;
+  if ($page->has_next_page) {
+    return await $self->_get_all_page_nodes(
+      $page->next_page,
+      $nodes,
+    );
+  }
+
+  return $nodes;
+}
+
+my sub cached_attr ($name, %arg) {
+  my $query_name = $arg{query_name};
+  Carp::confess("no query_name given") unless $query_name;
+
+  my $query_args = $arg{query_args};
+  Carp::confess("no query_args given") unless $query_args;
+
+  my $nodes_select = $arg{nodes_select};
+  Carp::confess("no nodes_select given") unless $nodes_select;
+
+  my $node_mapper = $arg{node_mapper};
 
   my $cache_attr_name = "_$name\_cache";
   my $clearer_name    = "_clear_$cache_attr_name";
@@ -98,14 +117,23 @@ my sub cached_attr ($name, %arg) {
   Sub::Install::install_sub({
     as    => $cache_attr_name,
     code  => sub ($self) {
+      my $page_f = $self->do_paginated_query({
+        query_name  => $query_name,
+        query_args  => $query_args,
+        nodes_select => $nodes_select,
+      });
+
       # If we've got a cache entry in the shared state, use that.  Otherwise,
       # make a new entry in it.
       my $guts = $self->_cache_guts;
+
+      my $lookup_f = $self->_get_all_page_nodes($page_f);
+
       return $guts->{$name} //= {
         cached_at => time,
         # We should allow the query to be a sub that generates things based on
         # client properties, but for now... whatever. -- rjbs, 2021-11-12
-        value     => $self->do_query($query)->then($xform),
+        value     => $node_mapper ? $lookup_f->then($node_mapper) : $lookup_f
       };
     }
   });
@@ -145,73 +173,42 @@ my sub cached_attr ($name, %arg) {
 }
 
 cached_attr project => (
-  query => q[
-    query Projects {
-      projects (filter: { state: { nin: ["completed" ]} }) {
-        nodes {
-          id
-          icon
-          name
-          slugId
-          description
-          teams { nodes { id key } }
-        }
-      }
-    }
+  query_name  => 'projects',
+  query_args  => {
+    filter => { state => { nin => [ 'completed' ] } },
+  },
+  nodes_select => [
+    qw( id icon name slugId description ),
+    teams => [ nodes => [ qw( id key ) ] ],
   ],
-  xform => sub ($res) {
-    my %map;
-    for my $project ($res->{data}{projects}{nodes}->@*) {
-      $map{ $project->{slugId} } = $project;
-      $project->{teams} = $project->{teams}{nodes};
-    }
-
-    return \%map;
+  node_mapper => sub ($nodes) {
+    return { map {; $_->{slugId} => $_ } @$nodes }
   },
 );
 
 cached_attr team => (
-  query => q[
-    query Teams {
-      teams {
-        nodes {
-          id key name
-          labels { nodes { id name color } }
-          states { nodes { id name color } }
-        }
-      }
-    }
+  query_name => 'teams',
+  query_args => {},
+  nodes_select => [
+    qw(id key name),
+    labels => [ nodes => [ qw( id name color ) ] ],
+    states => [ nodes => [ qw( id name color ) ] ],
   ],
-  xform => sub ($res) {
+  node_mapper => sub ($nodes) {
     return {
-      map {; lc $_->{key} => $_ } $res->{data}{teams}{nodes}->@*
-    }
-  },
-);
-
-cached_attr workspace_label => (
-  query => q[
-    query organization {
-      labels { nodes { id name } }
-    }
-  ],
-  xform => sub ($res) {
-    return {
-      map {; lc $_->{name} => $_ } $res->{data}{labels}{nodes}->@*
+      map {; lc $_->{key} => $_ } @$nodes
     }
   },
 );
 
 cached_attr user => (
-  query => q[
-    query User {
-      users { nodes { id displayName name } }
-    }
-  ],
-  xform => sub ($res) {
+  query_name => 'users',
+  query_args => {},
+  nodes_select => [ qw( id displayName name ) ],
+  node_mapper => sub ($nodes) {
     my $dict = {};
 
-    NODE: for my $node ($res->{data}{users}{nodes}->@*) {
+    NODE: for my $node (@$nodes) {
       unless ($node->{displayName}) {
         warn "no display name for $node->{name} // $node->{id}!\n";
         next NODE;
