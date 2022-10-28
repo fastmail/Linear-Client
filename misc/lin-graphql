@@ -1,0 +1,58 @@
+#!perl
+use v5.34.0;
+use warnings;
+
+use Cpanel::JSON::XS;
+use LWP::UserAgent;
+
+my $url = q{https://api.linear.app/graphql};
+my $lwp = LWP::UserAgent->new;
+$lwp->default_header(Authorization => "...");
+
+my $JSON = Cpanel::JSON::XS->new->pretty->canonical;
+
+sub query {
+  my ($query) = @_;
+
+  my $res = $lwp->post(
+    $url,
+    'Content-Type' => 'application/json',
+    Content => encode_json({ query => $query }),
+  );
+
+  die $res->as_string unless $res->is_success;
+
+  decode_json($res->content);
+}
+
+say $JSON->encode(
+  query(q[
+  query Me {
+    viewer {
+      id
+      name
+      email
+    }
+  }
+  ])
+);
+
+my $issues = query(q[
+query Issues {
+  issues(filter: {
+    assignee: { email: { eq: "rjbs@fastmailteam.com" } }
+    state:    { name:  { nin: [ "Done", "Canceled" ] } }
+  }) {
+    nodes {
+      id
+      identifier
+      title
+      state { name }
+    }
+  }
+}
+]);
+
+for my $issue ($issues->{data}{issues}{nodes}->@*) {
+  say "$issue->{identifier} - $issue->{state}{name} - $issue->{title}";
+}
