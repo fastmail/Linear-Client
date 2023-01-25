@@ -149,9 +149,10 @@ my sub cached_attr ($name, %arg) {
   Sub::Install::install_sub({
     as    => $plural,
     code  => async sub ($self) {
-      my $cache = $self->$cache_attr_name;
+      my $cache = $self->_cache_guts->{$name};
 
-      return await $cache->{value} if time - $cache->{cached_at} < 300
+      return await $cache->{value} if $cache
+                                   && time - $cache->{cached_at} < 300
                                    && ! $cache->{value}->is_failed
                                    && ! $cache->{value}->is_cancelled;
 
