@@ -33,6 +33,10 @@ has debug_flogger => (
   is => 'ro',
 );
 
+has log_complexity => (
+  is => 'rw',
+);
+
 sub maybe_log ($self, $arg) {
   my $flogger = $self->debug_flogger;
   return unless $flogger;
@@ -534,9 +538,7 @@ async sub get_authenticated_user ($self) {
   return $user->{data}{viewer};
 }
 
-async sub do_query {
-  my ($self, $query, $variables) = @_;
-
+async sub do_query ($self, $query, $variables = {}, $arg = {}) {
   my $res = await $self->_http->do_request(
     method => 'POST',
     uri    => $self->api_url,
@@ -550,6 +552,12 @@ async sub do_query {
   unless ($res->is_success) {
     warn $res->as_string; # Terrible -- rjbs, 2022-10-06
     die "failure with Linear API";
+  }
+
+  if ($self->log_complexity) {
+    my $cpx   = $res->header('X-Complexity') // '~';
+    my $desc  = $arg->{desc} // 'query';
+    warn "$desc: X-Complexity $cpx\n";
   }
 
   return decode_json($res->decoded_content(charset => undef))
