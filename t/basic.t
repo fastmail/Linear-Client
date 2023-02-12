@@ -302,6 +302,24 @@ plan_results_ok(
   "code blocks: triple backticks mean nothing in issue title",
 );
 
+plan_results_ok(
+  <<~'END',
+  >> rjbs@ste do the hustle
+  /project hash
+
+  Look at me!
+  END
+  superhashof({
+    title       => "do the hustle",
+    description => "Look at me!\n",
+    teamId      => $TEST_TEAMS{ste}{id},
+    assigneeId  => $TEST_USERS{rjbs}{id},
+    projectId   => 'pBiscuit',
+  }),
+  "/command lines",
+);
+
+
 plan_results_error(
   <<~'END',
   >> rjbs This will not be fine

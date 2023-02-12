@@ -14,8 +14,10 @@ use Future::AsyncAwait;
 use Linear::Client::PaginatedResult;
 
 use GraphQL::Miranda;
-use Net::Async::HTTP;
 use IO::Async::Loop;
+use Net::Async::HTTP;
+use String::Switches;
+
 use experimental 'signatures';
 
 has api_url => (
@@ -371,6 +373,8 @@ async sub plan_from_input ($self, $input) {
   my $issue_title;
   my $stateId;
 
+  my $switches;
+
   my $plusplus = qr{\+\+};
   my $angle = qr{>>};
 
@@ -378,8 +382,23 @@ async sub plan_from_input ($self, $input) {
 
   # set description if given
   if ($input =~ $LINESEP) {
-    ($input, my $description) = split /$LINESEP/, $input, 2;
+    ($input, my $rest) = split /$LINESEP/, $input, 2;
 
+    my @switch_lines;
+    while ($rest =~ m{\A$}m || $rest =~ m{\A/}) {
+      ((my $next), $rest) = split /$LINESEP/, $rest, 2;
+      next unless length $next;
+
+      push @switch_lines, $next;
+    }
+
+    if (@switch_lines) {
+      ($switches, my $err) = String::Switches::parse_switches(join q{ }, @switch_lines);
+
+      die "problem parsing switches: $err\n" if $err;
+    }
+
+    my $description = $rest;
     $issue{description} = $description;
 
     # If there is a code block between two sets of three backticks, make sure
@@ -454,8 +473,6 @@ async sub plan_from_input ($self, $input) {
   my $project_cb = async sub ($issue, $tag) {
     return unless $self->helper;
 
-    $tag =~ s/\A##//;
-
     my @project_ids = await $self->helper->project_ids_for_tag($tag);
 
     die "more than one project has the tag ##$tag\n" if @project_ids > 1;
@@ -479,26 +496,26 @@ async sub plan_from_input ($self, $input) {
     return;
   };
 
-  my @flag_checks = (
-    [ '(!)'     => async sub ($issue, $) { $issue->{priority} = 1 } ],
-    [ ':fire:'  => async sub ($issue, $) { $issue->{priority} = 1 } ],
-    [ '🔥'      => async sub ($issue, $) { $issue->{priority} = 1 } ],
+  my @flag_handler = (
+    [ '(!)'     => 'urgent' ],
+    [ ':fire:'  => 'urgent' ],
+    [ '🔥'      => 'urgent' ],
 
-    [ '(?)'     => $discuss_cb ],
-    [ ':phone:' => $discuss_cb ],
-    [ '☎️'       => $discuss_cb ],
+    [ '(?)'     => 'discuss' ],
+    [ ':phone:' => 'discuss' ],
+    [ '☎️'       => 'discuss' ],
 
-    [ qr/##[-0-9a-zA-Z]+/ => $project_cb ],
+    [ qr/##([-0-9a-zA-Z]+)/ => 'project' ],
   );
 
   my @hunks = split /(\s+)/, $issue_title;
   HUNK: while (defined (my $hunk = pop @hunks)) {
-    for my $spec (@flag_checks) {
-      my ($flag, $cb) = @$spec;
+    for my $spec (@flag_handler) {
+      my ($flag, $switch) = @$spec;
       my $pat = ref $flag ? $flag : quotemeta $flag;
 
       if ($hunk =~ /\A$pat\z/) {
-        await $cb->(\%issue, $hunk);
+        push @$switches, [ $switch, $1 ];
 
         # Drop the space that came before this hunk.
         pop @hunks;
@@ -509,6 +526,22 @@ async sub plan_from_input ($self, $input) {
 
     push @hunks, $hunk;
     last HUNK;
+  }
+
+  my %switch_handler = (
+    project => $project_cb,
+    urgent  => async sub ($issue, $) { $issue->{priority} = 1 },
+    discuss => $discuss_cb,
+  );
+
+  for my $switch (@$switches) {
+    my ($name, $value) = @$switch;
+
+    my $handler = $switch_handler{lc $name};
+
+    die "unknown switch /$name\n" unless $handler;
+
+    await $handler->(\%issue, $value);
   }
 
   $issue_title = join q{}, @hunks;
