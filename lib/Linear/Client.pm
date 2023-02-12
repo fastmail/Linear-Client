@@ -387,7 +387,7 @@ async sub plan_from_input ($self, $input) {
     my @switch_lines;
     while ($rest =~ m{\A$}m || $rest =~ m{\A/}) {
       ((my $next), $rest) = split /$LINESEP/, $rest, 2;
-      next unless length $next;
+      last unless length $next;
 
       push @switch_lines, $next;
     }
@@ -398,7 +398,7 @@ async sub plan_from_input ($self, $input) {
       die "problem parsing switches: $err\n" if $err;
     }
 
-    my $description = $rest;
+    my $description = $rest // '';
     $issue{description} = $description;
 
     # If there is a code block between two sets of three backticks, make sure
@@ -497,6 +497,27 @@ async sub plan_from_input ($self, $input) {
     return;
   };
 
+  my sub mk_label_cb ($default) {
+    return async sub ($issue, $label_name) {
+      $label_name //= $default;
+      die "no label name given!\n" unless $label_name;
+
+      my $teams   = await $self->teams;
+      my ($team)  = grep {; $_->{id} eq $team_id } values %$teams;
+
+      my @team_labels = $team->{labels}{nodes}->@*;
+      for (@team_labels) {
+        if (lc $_->{name} eq lc $label_name) {
+          $issue->{labelIds} //= [];
+          push $issue->{labelIds}->@*, $_->{id};
+          return;
+        }
+      }
+
+      die "couldn't find the label $label_name in this team\n";
+    };
+  }
+
   my @flag_handler = (
     [ '(!)'     => 'urgent' ],
     [ ':fire:'  => 'urgent' ],
@@ -530,9 +551,14 @@ async sub plan_from_input ($self, $input) {
   }
 
   my %switch_handler = (
+    label   => mk_label_cb(undef),
+    bug     => mk_label_cb('Bug'),
+    chore   => mk_label_cb('Chore'),
+    debt    => mk_label_cb('Tech Debt'),
+
     project => $project_cb,
-    urgent  => async sub ($issue, $) { $issue->{priority} = 1 },
     state   => $state_cb,
+    urgent  => async sub ($issue, $) { $issue->{priority} = 1 },
   );
 
   for my $switch (@$switches) {

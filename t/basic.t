@@ -15,6 +15,10 @@ use Linear::Client;
 my %TEST_TEAMS = (
   igg => { id => 'team-IGG', key => 'IGG', name => 'Eagles' },
   ste => { id => 'team-STE', key => 'STE', name => 'Steelers',
+           labels => { nodes => [
+             { name => 'Bug', id => 666 },
+             { name => 'Tech debt', id => 777 },
+           ] },
            states => { nodes => [ { name => 'To Discuss', id => 99 } ] } },
 );
 
@@ -205,6 +209,21 @@ plan_results_ok(
 );
 
 plan_results_ok(
+  <<~'END',
+  >> rjbs@ste discuss your problems
+  /state "To Discuss"
+  END
+  superhashof({
+    title       => "discuss your problems",
+    description => q{},
+    teamId      => $TEST_TEAMS{ste}{id},
+    assigneeId  => $TEST_USERS{rjbs}{id},
+    stateId     => 99
+  }),
+  "issue for discussion with /state",
+);
+
+plan_results_ok(
   '>> rjbs@ste ask about hash (?) ##hash',
   superhashof({
     title       => "ask about hash",
@@ -319,6 +338,39 @@ plan_results_ok(
   "/command lines",
 );
 
+plan_results_ok(
+  <<~'END',
+  >> rjbs@ste bugs stink
+  /label Bug
+
+  This is a bug.
+  END
+  superhashof({
+    title       => "bugs stink",
+    description => "This is a bug.\n",
+    teamId      => $TEST_TEAMS{ste}{id},
+    assigneeId  => $TEST_USERS{rjbs}{id},
+    labelIds    => [ 666 ],
+  }),
+  "/label as a switch",
+);
+
+plan_results_ok(
+  <<~'END',
+  >> rjbs@ste bugs stink
+  /bug
+
+  This is a bug.
+  END
+  superhashof({
+    title       => "bugs stink",
+    description => "This is a bug.\n",
+    teamId      => $TEST_TEAMS{ste}{id},
+    assigneeId  => $TEST_USERS{rjbs}{id},
+    labelIds    => [ 666 ],
+  }),
+  "/bug, shorthand for /label Bug",
+);
 
 plan_results_error(
   <<~'END',
