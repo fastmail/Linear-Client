@@ -25,6 +25,10 @@ async sub get_authenticated_user ($self) {
   $self->authenticated_user;
 }
 
+async sub lookup_current_cycle_id_for_team_id ($self, $team_id) {
+  return "CurrentCycleId";
+}
+
 for my $attr (qw( label state user team project )) {
   my $plural = "${attr}s";
 

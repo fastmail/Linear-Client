@@ -389,6 +389,7 @@ plan_results_ok(
     assigneeId  => $TEST_USERS{rjbs}{id},
     stateId     => 33,
     labelIds    => [ 666 ],
+    cycleId     => "CurrentCycleId",
   }),
   "/bug and /done",
 );

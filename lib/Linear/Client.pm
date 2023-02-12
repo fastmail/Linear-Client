@@ -360,6 +360,28 @@ async sub lookup_team_label ($self, $team_key, $label_name) {
   die "No label $label_name found for team $team_key";
 }
 
+async sub lookup_current_cycle_id_for_team_id ($self, $team_id) {
+  my $result = await $self->do_query(
+    q[
+      query CurrentCycle(
+        $teamId: String,
+      ) {
+        cycles(
+          filter: {
+            isActive: { eq: true }
+            team: { id: { eq: $teamId } }
+          }
+        ) {
+          nodes { id }
+        }
+      }
+    ],
+    { teamId => $team_id },
+  );
+
+  return $result->{cycles}{nodes}[0]{id};
+}
+
 async sub plan_from_input ($self, $input) {
   my %issue = (
     description => q{},
@@ -456,7 +478,7 @@ async sub plan_from_input ($self, $input) {
     die "can't create plan without team id$input_err\n";
   }
 
-  my sub mk_state_cb ($default) {
+  my sub mk_state_cb ($default, $put_in_cycle = 0) {
     my $state_cb = async sub ($issue, $wanted_state) {
       $wanted_state //= $default;
       die "no state name given!\n" unless $wanted_state;
@@ -473,6 +495,13 @@ async sub plan_from_input ($self, $input) {
         unless $state;
 
       $issue->{stateId} = $state->{id};
+
+      if ($put_in_cycle) {
+        my $cycle_id = await $self->lookup_current_cycle_id_for_team_id($team_id);
+        $issue->{cycleId} = $cycle_id;
+      }
+
+      return;
     };
   }
 
@@ -563,7 +592,7 @@ async sub plan_from_input ($self, $input) {
     standards => mk_label_cb('Standards Work'),
 
     state   => mk_state_cb(undef),
-    done    => mk_state_cb('Done'),
+    done    => mk_state_cb('Done', 1),
 
     project => $project_cb,
 
