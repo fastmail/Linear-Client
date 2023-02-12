@@ -456,16 +456,17 @@ async sub plan_from_input ($self, $input) {
     die "can't create plan without team id$input_err\n";
   }
 
-  my $discuss_cb = async sub ($issue, $) {
+  my $state_cb = async sub ($issue, $wanted_state) {
     my $teams   = await $self->teams;
     my ($team)  = grep {; $_->{id} eq $team_id } values %$teams;
 
     die "Something went wrong finding the team!\n" unless $team;
 
-    my ($state) = grep {; $_->{name} eq 'To Discuss' }
+    my ($state) = grep {; lc $_->{name} eq lc $wanted_state }
                   $team->{states}{nodes}->@*;
 
-    die "That team ($team_id) doesn't have a To Discuss state\n" unless $state;
+    die "That team ($team_id) doesn't have a $wanted_state state\n"
+      unless $state;
 
     $issue->{stateId} = $state->{id};
   };
@@ -501,9 +502,9 @@ async sub plan_from_input ($self, $input) {
     [ ':fire:'  => 'urgent' ],
     [ '🔥'      => 'urgent' ],
 
-    [ '(?)'     => 'discuss' ],
-    [ ':phone:' => 'discuss' ],
-    [ '☎️'       => 'discuss' ],
+    [ '(?)'     => 'state', 'To Discuss' ],
+    [ ':phone:' => 'state', 'To Discuss' ],
+    [ '☎️'       => 'state', 'To Discuss' ],
 
     [ qr/##([-0-9a-zA-Z]+)/ => 'project' ],
   );
@@ -511,11 +512,11 @@ async sub plan_from_input ($self, $input) {
   my @hunks = split /(\s+)/, $issue_title;
   HUNK: while (defined (my $hunk = pop @hunks)) {
     for my $spec (@flag_handler) {
-      my ($flag, $switch) = @$spec;
+      my ($flag, $switch, $value) = @$spec;
       my $pat = ref $flag ? $flag : quotemeta $flag;
 
       if ($hunk =~ /\A$pat\z/) {
-        push @$switches, [ $switch, $1 ];
+        push @$switches, [ $switch, $1 // $value ];
 
         # Drop the space that came before this hunk.
         pop @hunks;
@@ -531,7 +532,7 @@ async sub plan_from_input ($self, $input) {
   my %switch_handler = (
     project => $project_cb,
     urgent  => async sub ($issue, $) { $issue->{priority} = 1 },
-    discuss => $discuss_cb,
+    state   => $state_cb,
   );
 
   for my $switch (@$switches) {
