@@ -456,20 +456,25 @@ async sub plan_from_input ($self, $input) {
     die "can't create plan without team id$input_err\n";
   }
 
-  my $state_cb = async sub ($issue, $wanted_state) {
-    my $teams   = await $self->teams;
-    my ($team)  = grep {; $_->{id} eq $team_id } values %$teams;
+  my sub mk_state_cb ($default) {
+    my $state_cb = async sub ($issue, $wanted_state) {
+      $wanted_state //= $default;
+      die "no state name given!\n" unless $wanted_state;
 
-    die "Something went wrong finding the team!\n" unless $team;
+      my $teams   = await $self->teams;
+      my ($team)  = grep {; $_->{id} eq $team_id } values %$teams;
 
-    my ($state) = grep {; lc $_->{name} eq lc $wanted_state }
-                  $team->{states}{nodes}->@*;
+      die "Something went wrong finding the team!\n" unless $team;
 
-    die "That team ($team_id) doesn't have a $wanted_state state\n"
-      unless $state;
+      my ($state) = grep {; lc $_->{name} eq lc $wanted_state }
+                    $team->{states}{nodes}->@*;
 
-    $issue->{stateId} = $state->{id};
-  };
+      die "That team ($team_id) doesn't have a $wanted_state state\n"
+        unless $state;
+
+      $issue->{stateId} = $state->{id};
+    };
+  }
 
   my $project_cb = async sub ($issue, $tag) {
     return unless $self->helper;
@@ -551,13 +556,17 @@ async sub plan_from_input ($self, $input) {
   }
 
   my %switch_handler = (
-    label   => mk_label_cb(undef),
-    bug     => mk_label_cb('Bug'),
-    chore   => mk_label_cb('Chore'),
-    debt    => mk_label_cb('Tech Debt'),
+    label     => mk_label_cb(undef),
+    bug       => mk_label_cb('Bug'),
+    chore     => mk_label_cb('Chore'),
+    debt      => mk_label_cb('Tech Debt'),
+    standards => mk_label_cb('Standards Work'),
+
+    state   => mk_state_cb(undef),
+    done    => mk_state_cb('Done'),
 
     project => $project_cb,
-    state   => $state_cb,
+
     urgent  => async sub ($issue, $) { $issue->{priority} = 1 },
   );
 

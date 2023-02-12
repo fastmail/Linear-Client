@@ -16,10 +16,13 @@ my %TEST_TEAMS = (
   igg => { id => 'team-IGG', key => 'IGG', name => 'Eagles' },
   ste => { id => 'team-STE', key => 'STE', name => 'Steelers',
            labels => { nodes => [
-             { name => 'Bug', id => 666 },
+             { name => 'Bug',       id => 666 },
              { name => 'Tech debt', id => 777 },
            ] },
-           states => { nodes => [ { name => 'To Discuss', id => 99 } ] } },
+           states => { nodes => [
+             { name => 'To Discuss', id => 99 },
+             { name => 'Done',       id => 33 }
+           ] } },
 );
 
 my %TEST_USERS = (
@@ -370,6 +373,24 @@ plan_results_ok(
     labelIds    => [ 666 ],
   }),
   "/bug, shorthand for /label Bug",
+);
+
+plan_results_ok(
+  <<~'END',
+  >> rjbs@ste squash bugs
+  /bug /done
+
+  This is a bug.
+  END
+  superhashof({
+    title       => "squash bugs",
+    description => "This is a bug.\n",
+    teamId      => $TEST_TEAMS{ste}{id},
+    assigneeId  => $TEST_USERS{rjbs}{id},
+    stateId     => 33,
+    labelIds    => [ 666 ],
+  }),
+  "/bug and /done",
 );
 
 plan_results_error(
