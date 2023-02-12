@@ -364,7 +364,7 @@ async sub lookup_current_cycle_id_for_team_id ($self, $team_id) {
   my $result = await $self->do_query(
     q[
       query CurrentCycle(
-        $teamId: String,
+        $teamId: ID,
       ) {
         cycles(
           filter: {
