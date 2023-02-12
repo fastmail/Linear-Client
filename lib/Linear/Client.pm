@@ -593,6 +593,7 @@ async sub plan_from_input ($self, $input) {
 
     state   => mk_state_cb(undef),
     done    => mk_state_cb('Done', 1),
+    start   => mk_state_cb('In Progress', 1),
 
     project => $project_cb,
 
