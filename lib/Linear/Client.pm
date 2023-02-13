@@ -382,6 +382,121 @@ async sub lookup_current_cycle_id_for_team_id ($self, $team_id) {
   return $result->{cycles}{nodes}[0]{id};
 }
 
+my sub mk_state_cb ($default, $put_in_cycle = 0) {
+  my $state_cb = async sub ($self, $issue, $wanted_state) {
+    $wanted_state //= $default;
+    die "no state name given!\n" unless $wanted_state;
+
+    my $teams   = await $self->teams;
+    my $team_id = $issue->{teamId};
+    my ($team)  = grep {; $_->{id} eq $team_id } values %$teams;
+
+    die "Something went wrong finding the team!\n" unless $team;
+
+    my ($state) = grep {; lc $_->{name} eq lc $wanted_state }
+                  $team->{states}{nodes}->@*;
+
+    die "That team ($team_id) doesn't have a $wanted_state state\n"
+      unless $state;
+
+    $issue->{stateId} = $state->{id};
+
+    if ($put_in_cycle) {
+      my $cycle_id = await $self->lookup_current_cycle_id_for_team_id($team_id);
+      $issue->{cycleId} = $cycle_id;
+    }
+
+    return;
+  };
+}
+
+my sub mk_project_cb () {
+  async sub ($self, $issue, $tag) {
+    return unless $self->helper;
+
+    my @project_ids = await $self->helper->project_ids_for_tag($tag);
+
+    die "more than one project has the tag ##$tag\n" if @project_ids > 1;
+    die "no project has the tag ##$tag\n" if @project_ids == 0;
+
+    my $projects = await $self->projects;
+
+    my ($project) = grep {; $_->{slugId} eq $project_ids[0]
+                         || $_->{id}     eq $project_ids[0] } values %$projects;
+
+    unless ($project) {
+      die "the tag ##$tag turned into project id $project_ids[0], which can't be found\n";
+    }
+
+    unless (grep {; $_->{id} eq $issue->{teamId} } $project->{teams}->@*) {
+      die "the target team isn't part of the project ##$tag\n";
+    }
+
+    $issue->{projectId} = $project->{id};
+
+    return;
+  };
+}
+
+my sub mk_label_cb ($default) {
+  return async sub ($self, $issue, $label_name) {
+    $label_name //= $default;
+    die "no label name given!\n" unless $label_name;
+
+    my $teams   = await $self->teams;
+    my ($team)  = grep {; $_->{id} eq $issue->{teamId} } values %$teams;
+
+    my @team_labels = $team->{labels}{nodes}->@*;
+    for (@team_labels) {
+      if (lc $_->{name} eq lc $label_name) {
+        $issue->{labelIds} //= [];
+        push $issue->{labelIds}->@*, $_->{id};
+        return;
+      }
+    }
+
+    die "couldn't find the label $label_name in this team\n";
+  };
+}
+
+my sub _title_and_flag_switches_for ($line) {
+  state @flag_handler = (
+    [ '(!)'     => 'urgent' ],
+    [ ':fire:'  => 'urgent' ],
+    [ '🔥'      => 'urgent' ],
+
+    [ '(?)'     => 'state', 'To Discuss' ],
+    [ ':phone:' => 'state', 'To Discuss' ],
+    [ '☎️'       => 'state', 'To Discuss' ],
+
+    [ qr/##([-0-9a-zA-Z]+)/ => 'project' ],
+  );
+
+  my @switches;
+
+  my @hunks = split /(\s+)/, $line;
+  HUNK: while (defined (my $hunk = pop @hunks)) {
+    for my $spec (@flag_handler) {
+      my ($flag, $switch, $value) = @$spec;
+      my $pat = ref $flag ? $flag : quotemeta $flag;
+
+      if ($hunk =~ /\A$pat\z/) {
+        push @switches, [ $switch, $1 // $value ];
+
+        # Drop the space that came before this hunk.
+        pop @hunks;
+
+        next HUNK;
+      }
+    }
+
+    push @hunks, $hunk;
+    last HUNK;
+  }
+
+  return (join(q{}, @hunks), \@switches);
+}
+
 async sub plan_from_input ($self, $input) {
   my %issue = (
     description => q{},
@@ -392,7 +507,7 @@ async sub plan_from_input ($self, $input) {
   # -- rjbs, 2021-12-20
   my $helper = $self->helper;
 
-  my $issue_title;
+  my $first_line;
 
   my $switches;
 
@@ -449,7 +564,7 @@ async sub plan_from_input ($self, $input) {
 
   # if ++ or if >>
   if ($input =~ s/\A$plusplus\s+//) {
-    $issue_title = $input;
+    $first_line = $input;
     my $auth_user = await $self->get_authenticated_user;
 
     $assignee_id = $auth_user->{id};
@@ -464,7 +579,7 @@ async sub plan_from_input ($self, $input) {
     # if >> split into target/input, and assign target accordingly (user, team)
     my $target;
     ($target, $input) = split /\s+/, $input, 2;
-    $issue_title = $input;
+    $first_line = $input;
     $target =~ s/:\z//;
 
     ($assignee_id, $team_id) = await $self->who_or_what($target);
@@ -477,111 +592,11 @@ async sub plan_from_input ($self, $input) {
     die "can't create plan without team id$input_err\n";
   }
 
-  my sub mk_state_cb ($default, $put_in_cycle = 0) {
-    my $state_cb = async sub ($issue, $wanted_state) {
-      $wanted_state //= $default;
-      die "no state name given!\n" unless $wanted_state;
+  $issue{teamId} = $team_id;
 
-      my $teams   = await $self->teams;
-      my ($team)  = grep {; $_->{id} eq $team_id } values %$teams;
+  ($issue{title}, my $flag_switches) = _title_and_flag_switches_for($first_line);
 
-      die "Something went wrong finding the team!\n" unless $team;
-
-      my ($state) = grep {; lc $_->{name} eq lc $wanted_state }
-                    $team->{states}{nodes}->@*;
-
-      die "That team ($team_id) doesn't have a $wanted_state state\n"
-        unless $state;
-
-      $issue->{stateId} = $state->{id};
-
-      if ($put_in_cycle) {
-        my $cycle_id = await $self->lookup_current_cycle_id_for_team_id($team_id);
-        $issue->{cycleId} = $cycle_id;
-      }
-
-      return;
-    };
-  }
-
-  my $project_cb = async sub ($issue, $tag) {
-    return unless $self->helper;
-
-    my @project_ids = await $self->helper->project_ids_for_tag($tag);
-
-    die "more than one project has the tag ##$tag\n" if @project_ids > 1;
-    die "no project has the tag ##$tag\n" if @project_ids == 0;
-
-    my $projects = await $self->projects;
-
-    my ($project) = grep {; $_->{slugId} eq $project_ids[0]
-                         || $_->{id}     eq $project_ids[0] } values %$projects;
-
-    unless ($project) {
-      die "the tag ##$tag turned into project id $project_ids[0], which can't be found\n";
-    }
-
-    unless (grep {; $_->{id} eq $team_id } $project->{teams}->@*) {
-      die "the target team isn't part of the project ##$tag\n";
-    }
-
-    $issue->{projectId} = $project->{id};
-
-    return;
-  };
-
-  my sub mk_label_cb ($default) {
-    return async sub ($issue, $label_name) {
-      $label_name //= $default;
-      die "no label name given!\n" unless $label_name;
-
-      my $teams   = await $self->teams;
-      my ($team)  = grep {; $_->{id} eq $team_id } values %$teams;
-
-      my @team_labels = $team->{labels}{nodes}->@*;
-      for (@team_labels) {
-        if (lc $_->{name} eq lc $label_name) {
-          $issue->{labelIds} //= [];
-          push $issue->{labelIds}->@*, $_->{id};
-          return;
-        }
-      }
-
-      die "couldn't find the label $label_name in this team\n";
-    };
-  }
-
-  my @flag_handler = (
-    [ '(!)'     => 'urgent' ],
-    [ ':fire:'  => 'urgent' ],
-    [ '🔥'      => 'urgent' ],
-
-    [ '(?)'     => 'state', 'To Discuss' ],
-    [ ':phone:' => 'state', 'To Discuss' ],
-    [ '☎️'       => 'state', 'To Discuss' ],
-
-    [ qr/##([-0-9a-zA-Z]+)/ => 'project' ],
-  );
-
-  my @hunks = split /(\s+)/, $issue_title;
-  HUNK: while (defined (my $hunk = pop @hunks)) {
-    for my $spec (@flag_handler) {
-      my ($flag, $switch, $value) = @$spec;
-      my $pat = ref $flag ? $flag : quotemeta $flag;
-
-      if ($hunk =~ /\A$pat\z/) {
-        push @$switches, [ $switch, $1 // $value ];
-
-        # Drop the space that came before this hunk.
-        pop @hunks;
-
-        next HUNK;
-      }
-    }
-
-    push @hunks, $hunk;
-    last HUNK;
-  }
+  push @$switches, @$flag_switches;
 
   my %switch_handler = (
     label     => mk_label_cb(undef),
@@ -594,9 +609,9 @@ async sub plan_from_input ($self, $input) {
     done    => mk_state_cb('Done', 1),
     start   => mk_state_cb('In Progress', 1),
 
-    project => $project_cb,
+    project => mk_project_cb(),
 
-    urgent  => async sub ($issue, $) { $issue->{priority} = 1 },
+    urgent  => async sub ($self, $issue, $) { $issue->{priority} = 1 },
   );
 
   for my $switch (@$switches) {
@@ -606,13 +621,9 @@ async sub plan_from_input ($self, $input) {
 
     die "unknown switch /$name\n" unless $handler;
 
-    await $handler->(\%issue, $value);
+    await $handler->($self, \%issue, $value);
   }
 
-  $issue_title = join q{}, @hunks;
-
-  $issue{title}  = $issue_title;
-  $issue{teamId} = $team_id;
   $issue{assigneeId} = $assignee_id if $assignee_id;
 
   if ($issue{priority} && $issue{priority} == 1 && !$assignee_id) {
