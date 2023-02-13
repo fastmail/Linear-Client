@@ -393,7 +393,6 @@ async sub plan_from_input ($self, $input) {
   my $helper = $self->helper;
 
   my $issue_title;
-  my $stateId;
 
   my $switches;
 
@@ -615,7 +614,6 @@ async sub plan_from_input ($self, $input) {
   $issue{title}  = $issue_title;
   $issue{teamId} = $team_id;
   $issue{assigneeId} = $assignee_id if $assignee_id;
-  $issue{stateId} = $stateId if $stateId;
 
   if ($issue{priority} && $issue{priority} == 1 && !$assignee_id) {
     die "Can't create an urgent issue without a human assignee\n";
