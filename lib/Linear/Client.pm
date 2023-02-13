@@ -459,24 +459,24 @@ my sub mk_label_cb ($default) {
   };
 }
 
+my @FLAG_HANDLER = (
+  [ '(!)'     => 'urgent' ],
+  [ ':fire:'  => 'urgent' ],
+  [ '🔥'      => 'urgent' ],
+
+  [ '(?)'     => 'state', 'To Discuss' ],
+  [ ':phone:' => 'state', 'To Discuss' ],
+  [ '☎️'       => 'state', 'To Discuss' ],
+
+  [ qr/##([-0-9a-zA-Z]+)/ => 'project' ],
+);
+
 my sub _title_and_flag_switches_for ($line) {
-  state @flag_handler = (
-    [ '(!)'     => 'urgent' ],
-    [ ':fire:'  => 'urgent' ],
-    [ '🔥'      => 'urgent' ],
-
-    [ '(?)'     => 'state', 'To Discuss' ],
-    [ ':phone:' => 'state', 'To Discuss' ],
-    [ '☎️'       => 'state', 'To Discuss' ],
-
-    [ qr/##([-0-9a-zA-Z]+)/ => 'project' ],
-  );
-
   my @switches;
 
   my @hunks = split /(\s+)/, $line;
   HUNK: while (defined (my $hunk = pop @hunks)) {
-    for my $spec (@flag_handler) {
+    for my $spec (@FLAG_HANDLER) {
       my ($flag, $switch, $value) = @$spec;
       my $pat = ref $flag ? $flag : quotemeta $flag;
 
@@ -496,6 +496,22 @@ my sub _title_and_flag_switches_for ($line) {
 
   return (join(q{}, @hunks), \@switches);
 }
+
+my %SWITCH_HANDLER = (
+  label     => mk_label_cb(undef),
+  bug       => mk_label_cb('Bug'),
+  chore     => mk_label_cb('Chore'),
+  debt      => mk_label_cb('Tech Debt'),
+  standards => mk_label_cb('Standards Work'),
+
+  state   => mk_state_cb(undef),
+  done    => mk_state_cb('Done', 1),
+  start   => mk_state_cb('In Progress', 1),
+
+  project => mk_project_cb(),
+
+  urgent  => async sub ($self, $issue, $) { $issue->{priority} = 1 },
+);
 
 async sub plan_from_input ($self, $input) {
   my %issue = (
@@ -598,26 +614,10 @@ async sub plan_from_input ($self, $input) {
 
   push @$switches, @$flag_switches;
 
-  my %switch_handler = (
-    label     => mk_label_cb(undef),
-    bug       => mk_label_cb('Bug'),
-    chore     => mk_label_cb('Chore'),
-    debt      => mk_label_cb('Tech Debt'),
-    standards => mk_label_cb('Standards Work'),
-
-    state   => mk_state_cb(undef),
-    done    => mk_state_cb('Done', 1),
-    start   => mk_state_cb('In Progress', 1),
-
-    project => mk_project_cb(),
-
-    urgent  => async sub ($self, $issue, $) { $issue->{priority} = 1 },
-  );
-
   for my $switch (@$switches) {
     my ($name, $value) = @$switch;
 
-    my $handler = $switch_handler{lc $name};
+    my $handler = $SWITCH_HANDLER{lc $name};
 
     die "unknown switch /$name\n" unless $handler;
 
