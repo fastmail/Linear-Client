@@ -562,26 +562,12 @@ my %SWITCH_HANDLER = (
   urgent  => async sub ($self, $issue, $) { $issue->{priority} = 1 },
 );
 
-async sub plan_from_input ($self, $input) {
-  my %issue = (
-    priority => 0,
-  );
-
-  # This object can help us do directory lookups and the like, if provided.
-  # -- rjbs, 2021-12-20
-  my $helper = $self->helper;
-
+async sub _extract_target_from_first_line ($self, $issue, $first_line, $helper) {
   state $plusplus = qr{\+\+};
   state $angle    = qr{>>};
 
-  $input =~ s/\A\s+//; # Trim leading whitespace just in case.
-
-  my ($first_line, $description, $switches) = _decompose_input($input);
-
-  $issue{description} = $description;
-
   my ($assignee_id, $team_id);
-  my $input_err = '';
+  my $target_err = '';
 
   # if ++ or if >>
   if ($first_line =~ s/\A$plusplus\s+//) {
@@ -594,23 +580,44 @@ async sub plan_from_input ($self, $input) {
              ? $helper->team_id_for_username($username)
              : undef;
 
-    $input_err = " (could not determine team for $username)" unless $team_id;
+    $target_err = " (could not determine team for $username)" unless $team_id;
   } elsif ($first_line =~ s/\A$angle\s+//) {
     # if >> split into target/input, and assign target accordingly (user, team)
     (my $target, $first_line) = split /\s+/, $first_line, 2;
     $target =~ s/:\z//;
 
     ($assignee_id, $team_id) = await $self->who_or_what($target);
-    $input_err = " (could not determine team for '$target')" unless $team_id;
+    $target_err = " (could not determine team for '$target')" unless $team_id;
   } else {
     die "Can't prepare a plan without ++ or >>\n";
   }
 
-  unless ($team_id) {
-    die "can't create plan without team id$input_err\n";
-  }
+  $issue->{teamId}      = $team_id if $team_id;
+  $issue->{assigneeId}  = $assignee_id if $assignee_id;
 
-  $issue{teamId} = $team_id;
+  return ($first_line, $target_err);
+}
+
+async sub plan_from_input ($self, $input) {
+  my %issue = (
+    priority => 0,
+  );
+
+  # This object can help us do directory lookups and the like, if provided.
+  # -- rjbs, 2021-12-20
+  my $helper = $self->helper;
+
+  $input =~ s/\A\s+//; # Trim leading whitespace just in case.
+
+  my ($first_line, $description, $switches) = _decompose_input($input);
+
+  $issue{description} = $description;
+
+  ($first_line, my $target_err) = await $self->_extract_target_from_first_line(\%issue, $first_line, $helper);
+
+  unless ($issue{teamId}) {
+    die "can't create plan without team id$target_err\n";
+  }
 
   ($issue{title}, my $flag_switches) = _title_and_flag_switches_for($first_line);
 
@@ -626,9 +633,7 @@ async sub plan_from_input ($self, $input) {
     await $handler->($self, \%issue, $value);
   }
 
-  $issue{assigneeId} = $assignee_id if $assignee_id;
-
-  if ($issue{priority} && $issue{priority} == 1 && !$assignee_id) {
+  if ($issue{priority} && $issue{priority} == 1 && !$issue{assigneeId}) {
     die "Can't create an urgent issue without a human assignee\n";
   }
 
