@@ -497,40 +497,9 @@ my sub _title_and_flag_switches_for ($line) {
   return (join(q{}, @hunks), \@switches);
 }
 
-my %SWITCH_HANDLER = (
-  label     => mk_label_cb(undef),
-  bug       => mk_label_cb('Bug'),
-  chore     => mk_label_cb('Chore'),
-  debt      => mk_label_cb('Tech Debt'),
-  standards => mk_label_cb('Standards Work'),
-
-  state   => mk_state_cb(undef),
-  done    => mk_state_cb('Done', 1),
-  start   => mk_state_cb('In Progress', 1),
-
-  project => mk_project_cb(),
-
-  urgent  => async sub ($self, $issue, $) { $issue->{priority} = 1 },
-);
-
-async sub plan_from_input ($self, $input) {
-  my %issue = (
-    description => q{},
-    priority    => 0,
-  );
-
-  # This object can help us do directory lookups and the like, if provided.
-  # -- rjbs, 2021-12-20
-  my $helper = $self->helper;
-
-  my $first_line;
-
+my sub _decompose_input ($input) {
+  my $description = q{};
   my $switches;
-
-  my $plusplus = qr{\+\+};
-  my $angle = qr{>>};
-
-  $input =~ s/\A\s+//; # Trim leading whitespace just in case.
 
   # set description if given
   if ($input =~ $LINESEP) {
@@ -550,8 +519,7 @@ async sub plan_from_input ($self, $input) {
       die "problem parsing switches: $err\n" if $err;
     }
 
-    my $description = $rest // '';
-    $issue{description} = $description;
+    $description = $rest // '';
 
     # If there is a code block between two sets of three backticks, make sure
     # they are on their own lines
@@ -565,22 +533,58 @@ async sub plan_from_input ($self, $input) {
       my @hunks = split /```\n?/, $description;
       s/\n+\z// for @hunks; # Iffy. -- rjbs, 2022-06-14
 
-      $issue{description} = q{}; # start with empty string
+      $description = q{}; # start with empty string
       for my $i (0 .. $#hunks) {
-        $issue{description} .= $i % 2 == 0 ? $hunks[$i]
-                                           : "```\n$hunks[$i]\n```\n";
+        $description .= $i % 2 == 0 ? $hunks[$i]
+                                    : "```\n$hunks[$i]\n```\n";
       }
     }
 
-    $issue{description} =~ s/\n+\z/\n/;
+    $description =~ s/\n+\z/\n/;
   }
+
+  return ($input, $description, $switches);
+}
+
+my %SWITCH_HANDLER = (
+  label     => mk_label_cb(undef),
+  bug       => mk_label_cb('Bug'),
+  chore     => mk_label_cb('Chore'),
+  debt      => mk_label_cb('Tech Debt'),
+  standards => mk_label_cb('Standards Work'),
+
+  state   => mk_state_cb(undef),
+  done    => mk_state_cb('Done', 1),
+  start   => mk_state_cb('In Progress', 1),
+
+  project => mk_project_cb(),
+
+  urgent  => async sub ($self, $issue, $) { $issue->{priority} = 1 },
+);
+
+async sub plan_from_input ($self, $input) {
+  my %issue = (
+    priority => 0,
+  );
+
+  # This object can help us do directory lookups and the like, if provided.
+  # -- rjbs, 2021-12-20
+  my $helper = $self->helper;
+
+  state $plusplus = qr{\+\+};
+  state $angle    = qr{>>};
+
+  $input =~ s/\A\s+//; # Trim leading whitespace just in case.
+
+  my ($first_line, $description, $switches) = _decompose_input($input);
+
+  $issue{description} = $description;
 
   my ($assignee_id, $team_id);
   my $input_err = '';
 
   # if ++ or if >>
-  if ($input =~ s/\A$plusplus\s+//) {
-    $first_line = $input;
+  if ($first_line =~ s/\A$plusplus\s+//) {
     my $auth_user = await $self->get_authenticated_user;
 
     $assignee_id = $auth_user->{id};
@@ -591,11 +595,9 @@ async sub plan_from_input ($self, $input) {
              : undef;
 
     $input_err = " (could not determine team for $username)" unless $team_id;
-  } elsif ($input =~ s/\A$angle\s+//) {
+  } elsif ($first_line =~ s/\A$angle\s+//) {
     # if >> split into target/input, and assign target accordingly (user, team)
-    my $target;
-    ($target, $input) = split /\s+/, $input, 2;
-    $first_line = $input;
+    (my $target, $first_line) = split /\s+/, $first_line, 2;
     $target =~ s/:\z//;
 
     ($assignee_id, $team_id) = await $self->who_or_what($target);
