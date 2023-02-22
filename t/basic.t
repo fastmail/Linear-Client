@@ -117,6 +117,17 @@ plan_results_ok(
 );
 
 plan_results_ok(
+  "++\@ste eat more scrapple",
+  superhashof({
+    title       => "eat more scrapple",
+    description => q{}, # This seems weird, right? -- rjbs, 2021-10-28
+    teamId      => $TEST_TEAMS{ste}{id},
+    assigneeId  => $AUTH_USER_ID,
+  }),
+  "self-assigned with ++\@",
+);
+
+plan_results_ok(
   ">> rasha eat more shawarma",
   superhashof({
     title       => "eat more shawarma",

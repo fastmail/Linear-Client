@@ -570,17 +570,25 @@ async sub _extract_target_from_first_line ($self, $issue, $first_line, $helper) 
   my $target_err = '';
 
   # if ++ or if >>
-  if ($first_line =~ s/\A$plusplus\s+//) {
+  if ($first_line =~ s/\A$plusplus(?:@(\w+))?\s+//) {
+    my $team_name = $1;
+
     my $auth_user = await $self->get_authenticated_user;
 
     $assignee_id = $auth_user->{id};
     my $username = $auth_user->{username};
 
-    $team_id = $helper
-             ? $helper->team_id_for_username($username)
-             : undef;
+    if ($team_name) {
+      my $team = await $self->lookup_team($team_name);
+      $team_id = $team->{id};
+      $target_err = " (could not determine team)" unless $team_id;
+    } else {
+      $team_id = $helper
+               ? $helper->team_id_for_username($username)
+               : undef;
 
-    $target_err = " (could not determine team for $username)" unless $team_id;
+      $target_err = " (could not determine team for $username)" unless $team_id;
+    }
   } elsif ($first_line =~ s/\A$angle\s+//) {
     # if >> split into target/input, and assign target accordingly (user, team)
     (my $target, $first_line) = split /\s+/, $first_line, 2;
