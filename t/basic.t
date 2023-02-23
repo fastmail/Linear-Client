@@ -175,6 +175,18 @@ plan_results_ok(
 );
 
 plan_results_ok(
+  '>> rjbs@ste bake a cake --- /debt --- Remember, the best cake is pie.',
+  superhashof({
+    title       => "bake a cake",
+    description => q{Remember, the best cake is pie.},
+    teamId      => $TEST_TEAMS{ste}{id},
+    assigneeId  => $TEST_USERS{rjbs}{id},
+    labelIds    => [ 777 ],
+  }),
+  "user, team, description, label, all one line",
+);
+
+plan_results_ok(
   '>> rjbs pay your bills (!)',
   superhashof({
     title       => "pay your bills",
