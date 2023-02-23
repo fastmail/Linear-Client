@@ -551,6 +551,7 @@ my %SWITCH_HANDLER = (
   bug       => mk_label_cb('Bug'),
   chore     => mk_label_cb('Chore'),
   debt      => mk_label_cb('Tech Debt'),
+  dev       => mk_label_cb('Feature Dev'),
   standards => mk_label_cb('Standards Work'),
 
   state   => mk_state_cb(undef),
