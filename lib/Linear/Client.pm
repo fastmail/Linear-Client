@@ -466,7 +466,7 @@ my @FLAG_HANDLER = (
 
   [ '(?)'     => 'state', 'To Discuss' ],
   [ ':phone:' => 'state', 'To Discuss' ],
-  [ '☎️'       => 'state', 'To Discuss' ],
+  [ "\N{BLACK TELEPHONE}\N{VARIATION SELECTOR-16}" => 'state', 'To Discuss' ],
 
   [ qr/##([-0-9a-zA-Z]+)/ => 'project' ],
 );
