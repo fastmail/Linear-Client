@@ -459,6 +459,31 @@ my sub mk_label_cb ($default) {
   };
 }
 
+my sub mk_estimate_cb () {
+  state %points_for = (
+    xs      => 1,
+    s       => 2,
+    small   => 2,
+    m       => 3,
+    medium  => 3,
+    l       => 5,
+    large   => 5,
+    xl      => 8,
+  );
+
+  return async sub ($self, $issue, $estimate) {
+    die "no estimate size given!\n" unless $estimate;
+
+    my $points = $points_for{ lc $estimate };
+
+    die "unknown estimate size\n" unless $points;
+
+    $issue->{estimate} = $points;
+
+    return;
+  };
+}
+
 my @FLAG_HANDLER = (
   [ '(!)'     => 'urgent' ],
   [ ':fire:'  => 'urgent' ],
@@ -506,7 +531,7 @@ my sub _decompose_input ($input) {
     ($input, my $rest) = split /$LINESEP/, $input, 2;
 
     my @switch_lines;
-    while ($rest =~ m{\A$}m || $rest =~ m{\A/}) {
+    while ($rest && ($rest =~ m{\A$}m || $rest =~ m{\A/})) {
       ((my $next), $rest) = split /$LINESEP/, $rest, 2;
       last unless length $next;
 
@@ -558,7 +583,9 @@ my %SWITCH_HANDLER = (
   done    => mk_state_cb('Done', 1),
   start   => mk_state_cb('In Progress', 1),
 
-  project => mk_project_cb(),
+  est      => mk_estimate_cb(),
+  estimate => mk_estimate_cb(),
+  project  => mk_project_cb(),
 
   urgent  => async sub ($self, $issue, $) { $issue->{priority} = 1 },
 );
@@ -724,6 +751,7 @@ async sub create_issue ($self, $plan) {
         $labelIds: [String!],
         $stateId: String,
         $projectId: String,
+        $estimate: Int,
       ) {
         issueCreate (
           input: {
@@ -735,6 +763,7 @@ async sub create_issue ($self, $plan) {
             labelIds: $labelIds
             stateId: $stateId
             projectId: $projectId
+            estimate: $estimate
           }
         ) {
           success

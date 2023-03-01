@@ -128,6 +128,18 @@ plan_results_ok(
 );
 
 plan_results_ok(
+  "++ eat more scrapple --- /est L",
+  superhashof({
+    title       => "eat more scrapple",
+    description => q{}, # This seems weird, right? -- rjbs, 2021-10-28
+    teamId      => $DEFAULT_TEAM_ID,
+    assigneeId  => $AUTH_USER_ID,
+    estimate    => 5,
+  }),
+  "self-assigned with ++, estimated",
+);
+
+plan_results_ok(
   ">> rasha eat more shawarma",
   superhashof({
     title       => "eat more shawarma",
