@@ -484,6 +484,29 @@ my sub mk_estimate_cb () {
   };
 }
 
+my sub mk_priority_cb ($default) {
+  state %priority_for = (
+    none    => 0, # what kind of monster would pick this?
+    low     => 3,
+    medium  => 4,
+    high    => 2,
+    urgent  => 1,
+  );
+
+  return async sub ($self, $issue, $priority) {
+    $priority //= $default;
+    die "no priority given!\n" unless $priority;
+
+    my $value = $priority_for{ lc $priority };
+
+    die "unknown priority\n" unless $value;
+
+    $issue->{priority} = $value;
+
+    return;
+  };
+}
+
 my @FLAG_HANDLER = (
   [ '(!)'     => 'urgent' ],
   [ ':fire:'  => 'urgent' ],
@@ -587,7 +610,8 @@ my %SWITCH_HANDLER = (
   estimate => mk_estimate_cb(),
   project  => mk_project_cb(),
 
-  urgent  => async sub ($self, $issue, $) { $issue->{priority} = 1 },
+  urgent   => mk_priority_cb('urgent'),
+  priority => mk_priority_cb(undef),
 );
 
 async sub _extract_target_from_first_line ($self, $issue, $first_line, $helper) {

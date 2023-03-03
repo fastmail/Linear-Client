@@ -223,6 +223,30 @@ plan_results_ok(
 );
 
 plan_results_ok(
+  '>> rjbs pay your bills --- /urgent',
+  superhashof({
+    title       => "pay your bills",
+    description => q{},
+    teamId      => $DEFAULT_TEAM_ID,
+    assigneeId  => $TEST_USERS{rjbs}{id},
+    priority    => 1, # 1 is always urgent
+  }),
+  "user, no team, description, urgent!! (/switch)",
+);
+
+plan_results_ok(
+  '>> rjbs pay your bills --- /priority high',
+  superhashof({
+    title       => "pay your bills",
+    description => q{},
+    teamId      => $DEFAULT_TEAM_ID,
+    assigneeId  => $TEST_USERS{rjbs}{id},
+    priority    => 2,
+  }),
+  "user, no team, description, high priority! (/switch)",
+);
+
+plan_results_ok(
   '>> rjbs@ste discuss your problems :phone:',
   superhashof({
     title       => "discuss your problems",
