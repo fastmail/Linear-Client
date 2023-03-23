@@ -754,10 +754,10 @@ async sub create_comment ($self, $comment_data) {
           }
         ) {
           success
-            comment {
-              id
-              url
-           }
+          comment {
+            id
+            url
+         }
          }
       }
     ],
@@ -808,6 +808,31 @@ async sub create_issue ($self, $plan) {
     ],
     $plan,
   );
+}
+
+async sub add_attachment_to_issue ($self, $issue_id, $attachment) {
+  die "no attachment title given" unless $attachment->{title};
+  die "no attachment url given"   unless $attachment->{url};
+
+  my $attachment_create = GraphQL::Miranda->selection_set(
+    attachmentCreate => {
+      args    => {
+        input => {
+          issueId => $issue_id,
+          title  => $attachment->{title},
+          url    => $attachment->{url},
+          ($attachment->{iconUrl}
+            ? (iconUrl => $attachment->{iconUrl})
+            : ()),
+        },
+      },
+      select  => [ 'success' ],
+    }
+  );
+
+  my $graphql = "mutation {\n" . $attachment_create->as_string("  ") . "\n}\n";
+
+  return await $self->do_query($graphql);
 }
 
 async sub post_project_update ($self, $project_id, $arg) {
