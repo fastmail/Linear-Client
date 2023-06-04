@@ -1010,6 +1010,7 @@ async sub do_paginated_query ($self, $arg) {
   my $query_name   = $arg->{query_name};
   my $query_args   = $arg->{query_args};
   my $nodes_select = $arg->{nodes_select};
+  my $extra_select = $arg->{extra_select};
 
   my $gen = sub ($pager, @rest) {
     unless (
@@ -1037,6 +1038,7 @@ async sub do_paginated_query ($self, $arg) {
           nodes => {
             select => $nodes_select,
           },
+          @$extra_select,
         ],
       },
     );
