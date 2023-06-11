@@ -1038,7 +1038,7 @@ async sub do_paginated_query ($self, $arg) {
           nodes => {
             select => $nodes_select,
           },
-          @$extra_select,
+          ($extra_select ? @$extra_select : ()),
         ],
       },
     );
