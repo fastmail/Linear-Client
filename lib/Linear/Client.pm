@@ -623,44 +623,93 @@ async sub _extract_target_from_first_line ($self, $issue, $first_line, $helper) 
   state $plusplus = qr{\+\+};
   state $angle    = qr{>>};
 
-  my ($assignee_id, $team_id);
-  my $target_err = '';
-
-  # if ++ or if >>
   if ($first_line =~ s/\A$plusplus(?:@(\w+))?\s+//) {
     my $team_name = $1;
 
-    my $auth_user = await $self->get_authenticated_user;
+    return await $self->_extract_plusplus_target(
+      $team_name,
+      $issue,
+      $first_line,
+      $helper
+    );
+  }
 
-    $assignee_id = $auth_user->{id};
-    my $username = $auth_user->{username};
+  if ($first_line =~ s/\A$angle\s+//) {
+    return await $self->_extract_angle_target($issue, $first_line, $helper);
+  }
 
-    if ($team_name) {
-      my $team = await $self->lookup_team($team_name);
-      $team_id = $team->{id};
-      $target_err = " (could not determine team)" unless $team_id;
-    } else {
-      $team_id = $helper
-               ? $helper->team_id_for_username($username)
-               : undef;
+  die "Can't prepare a plan without ++ or >>\n";
+}
 
-      $target_err = " (could not determine team for $username)" unless $team_id;
+async sub _extract_plusplus_target ($self, $team_name, $issue, $first_line, $helper) {
+  my $auth_user = await $self->get_authenticated_user;
+
+  my $team_id;
+  my @extra_switches;
+  my $target_err = '';
+
+  my $assignee_id = $auth_user->{id};
+  my $username = $auth_user->{username};
+
+  if ($team_name) {
+    if (my $macro = $helper->expand_team_as_macro($team_name)) {
+      $team_name = $macro->{team};
+      push @extra_switches, $macro->{switches}->@*;
     }
-  } elsif ($first_line =~ s/\A$angle\s+//) {
-    # if >> split into target/input, and assign target accordingly (user, team)
-    (my $target, $first_line) = split /\s+/, $first_line, 2;
-    $target =~ s/:\z//;
 
-    ($assignee_id, $team_id) = await $self->who_or_what($target);
-    $target_err = " (could not determine team for '$target')" unless $team_id;
+    my $team = await $self->lookup_team($team_name);
+    $team_id = $team->{id};
+    $target_err = " (could not determine team)" unless $team_id;
   } else {
-    die "Can't prepare a plan without ++ or >>\n";
+    $team_id = $helper
+             ? $helper->team_id_for_username($username)
+             : undef;
+
+    $target_err = " (could not determine team for $username)" unless $team_id;
   }
 
   $issue->{teamId}      = $team_id if $team_id;
   $issue->{assigneeId}  = $assignee_id if $assignee_id;
 
-  return ($first_line, $target_err);
+  return ($first_line, $target_err, \@extra_switches);
+}
+
+async sub _extract_angle_target ($self, $issue, $first_line, $helper) {
+  my $target_err = '';
+
+  # if >> split into target/input, and assign target accordingly (user, team)
+  (my $target, $first_line) = split /\s+/, $first_line, 2;
+  $target =~ s/:\z//;
+
+  my @extra_switches;
+
+  {
+    # "$teamname" is kinda bogus because if there is no @ then we put the whole
+    # target in there, even though it's the call to who_or_what that determines
+    # the what-is-the-team-name part.  This is all bogus, but it should get the
+    # job done.
+    my $username;
+    my $teamname;
+
+    ($username, $teamname) = $target =~ /@/
+                           ? (split /@/, $target, 2)
+                           : (undef, $target);
+
+    if (my $macro = $helper->expand_team_as_macro($teamname)) {
+      push @extra_switches, $macro->{switches}->@*;
+
+      $target = $username ? "$username\@$macro->{team}"
+                          : $macro->{team};
+    }
+  }
+
+  my ($assignee_id, $team_id) = await $self->who_or_what($target);
+  $target_err = " (could not determine team for '$target')" unless $team_id;
+
+  $issue->{teamId}      = $team_id if $team_id;
+  $issue->{assigneeId}  = $assignee_id if $assignee_id;
+
+  return ($first_line, $target_err, \@extra_switches);
 }
 
 async sub plan_from_input ($self, $input) {
@@ -678,7 +727,13 @@ async sub plan_from_input ($self, $input) {
 
   $issue{description} = $description;
 
-  ($first_line, my $target_err) = await $self->_extract_target_from_first_line(\%issue, $first_line, $helper);
+  ($first_line, my $target_err, my $extra_switches) = await $self->_extract_target_from_first_line(\%issue, $first_line, $helper);
+
+  # Some teams act as macros that say "no, no, there is no BAK team, only FM
+  # team plus the [ label => foo ] switch".  The team name substitution happens
+  # internally to _extract_target_from_first_line.  The appending of switches
+  # happens right here:
+  push @$switches, @$extra_switches;
 
   unless ($issue{teamId}) {
     die "can't create plan without team id$target_err\n";

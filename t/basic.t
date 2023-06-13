@@ -18,6 +18,7 @@ my %TEST_TEAMS = (
            labels => { nodes => [
              { name => 'Bug',       id => 666 },
              { name => 'Tech debt', id => 777 },
+             { name => 'Backend',   id => 888 },
            ] },
            states => { nodes => [
              { name => 'To Discuss', id => 99 },
@@ -60,6 +61,17 @@ package Linear::TestHelper {
   sub normalize_username   ($self, $username)  { $username }
   sub team_id_for_username ($self, $username)  { $DEFAULT_TEAM_ID }
   sub normalize_team_name  ($self, $team_name) { $team_name }
+
+  sub expand_team_as_macro ($self, $team_name) {
+    return unless lc $team_name eq 'png';
+
+    return {
+      team => 'STE',
+      switches => [
+        [ label => 'backend' ],
+      ],
+    }
+  }
 
   sub project_ids_for_tag ($self, $tag) {
     return Future->done('HHHH') if $tag eq 'hash';
@@ -451,6 +463,56 @@ plan_results_ok(
     cycleId     => "CurrentCycleId",
   }),
   "/bug and /done",
+);
+
+plan_results_ok(
+  <<~'END',
+  >> rjbs@png go flyers
+  /bug
+
+  This is a bug.
+  END
+  superhashof({
+    title       => "go flyers",
+    description => "This is a bug.\n",
+    teamId      => $TEST_TEAMS{ste}{id},
+    assigneeId  => $TEST_USERS{rjbs}{id},
+    labelIds    => [ 666, 888 ],
+  }),
+  "user-at-team where team is macro",
+);
+
+plan_results_ok(
+  <<~'END',
+  >> png go flyers
+  /bug
+
+  This is a bug.
+  END
+  superhashof({
+    title       => "go flyers",
+    description => "This is a bug.\n",
+    teamId      => $TEST_TEAMS{ste}{id},
+    labelIds    => [ 666, 888 ],
+  }),
+  "team-no-user where team is macro",
+);
+
+plan_results_ok(
+  <<~'END',
+  ++@png go flyers
+  /bug
+
+  This is a bug.
+  END
+  superhashof({
+    title       => "go flyers",
+    description => "This is a bug.\n",
+    teamId      => $TEST_TEAMS{ste}{id},
+    assigneeId  => $AUTH_USER_ID,
+    labelIds    => [ 666, 888 ],
+  }),
+  "self-at-team where team is macro",
 );
 
 plan_results_error(
