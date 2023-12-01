@@ -397,6 +397,34 @@ plan_results_ok(
 
 plan_results_ok(
   <<~'END',
+  >> rjbs xyz
+  This thing ```
+  Some code/logs
+  ```
+  other things ```
+  More code/logs
+  ```
+  END
+  superhashof({
+    title       => "xyz",
+    description => <<~'END',
+    This thing
+    ```
+    Some code/logs
+    ```
+    other things
+    ```
+    More code/logs
+    ```
+    END
+    teamId      => $DEFAULT_TEAM_ID,
+    assigneeId  => $TEST_USERS{rjbs}{id},
+  }),
+  "code blocks: triple backticks mean nothing in issue title",
+);
+
+plan_results_ok(
+  <<~'END',
   >> rjbs@ste do the hustle
   /project hash
 
