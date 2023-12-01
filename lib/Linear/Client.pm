@@ -580,12 +580,18 @@ my sub _decompose_input ($input) {
       # even hunks are non-code-blocks
       # odd  hunks are code blocks
       my @hunks = split /```\n?/, $description;
-      s/\n+\z// for @hunks; # Iffy. -- rjbs, 2022-06-14
 
       $description = q{}; # start with empty string
       for my $i (0 .. $#hunks) {
-        $description .= $i % 2 == 0 ? $hunks[$i]
-                                    : "```\n$hunks[$i]\n```\n";
+        $hunks[$i] =~ s/\n+\z//; # Iffy. -- rjbs, 2022-06-14
+
+        if ($i % 2 == 0) {
+          $hunks[$i] =~ s/\h+\z//;
+          $description .= $hunks[$i];
+        } else {
+          $description .= "\n" if length $description && $description !~ /\n\z/;
+          $description .= "```\n$hunks[$i]\n```\n";
+        }
       }
     }
 
