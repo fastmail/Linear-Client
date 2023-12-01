@@ -612,6 +612,8 @@ my %SWITCH_HANDLER = (
 
   bak       => mk_label_cb('Backend'),
   cli       => mk_label_cb('Client'),
+  dsc       => mk_label_cb('Data Science'),
+  plu       => mk_label_cb('Plumbing'),
 
   state   => mk_state_cb(undef),
   done    => mk_state_cb('Done', 1),
