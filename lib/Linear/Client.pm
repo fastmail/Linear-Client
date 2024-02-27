@@ -1020,6 +1020,10 @@ async sub search_issues ($self, $search) {
 
   $self->maybe_log([ "given search %s built filter %s", $search, \%filter ]);
 
+  return await $self->_search_by_filter(\%filter);
+}
+
+async sub _search_by_filter ($self, $filter, $arg = {}) {
   my $gen = sub ($pager, @rest) {
     unless (
       @rest == 0
@@ -1029,12 +1033,20 @@ async sub search_issues ($self, $search) {
       die "confused! [@rest]";
     }
 
+    my $select = $arg->{select} // [
+      qw(identifier title priority url createdAt updatedAt),
+      assignee => [ qw(displayName) ],
+      state => [ qw(name type) ],
+      team  => [ qw(name id) ],
+      project => [ qw(name id icon) ],
+    ];
+
     # XXX: I am deeply unsure about the byte/text boundary here and will need
     # to think about it with my thinking at on. -- rjbs, 2021-11-19
     my $selection = GraphQL::Miranda->selection_set(
       issues => {
         args    => {
-          filter => \%filter,
+          filter => $filter,
           first  => 100,
           @rest,
         },
@@ -1043,13 +1055,7 @@ async sub search_issues ($self, $search) {
             select => [ qw( startCursor endCursor hasNextPage hasPreviousPage ) ],
           },
           nodes => {
-            select => [
-              qw(identifier title priority url createdAt updatedAt),
-              assignee => [ qw(displayName) ],
-              state => [ qw(name type) ],
-              team  => [ qw(name id) ],
-              project => [ qw(name id icon) ],
-            ],
+            select => $select
           },
         ],
       },
