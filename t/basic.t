@@ -13,6 +13,7 @@ use Linear::TestClient;
 use Linear::Client;
 
 my %TEST_TEAMS = (
+  dup => { id => 'team-DUP', key => 'DUP', name => 'Duplo' },
   igg => { id => 'team-IGG', key => 'IGG', name => 'Eagles' },
   ste => { id => 'team-STE', key => 'STE', name => 'Steelers',
            labels => { nodes => [
@@ -29,6 +30,7 @@ my %TEST_TEAMS = (
 my %TEST_USERS = (
   rasha => { id => 'user-123', displayName => 'rasha', name => 'Rasha M' },
   rjbs  => { id => 'user-234', displayName => 'rjbs',  name => 'Rik S' },
+  dup   => { id => 'user-999', displayName => 'duplo', name => 'Duplo B' },
 );
 
 my %TEST_PROJECTS = (
@@ -604,6 +606,16 @@ plan_results_error(
     q{Can't create an urgent issue without a human assignee},
   ],
   "can't create an urgent issue without a human assignee"
+);
+
+plan_results_ok(
+  '>> dup the target is ambiguous',
+  superhashof({
+    title       => "the target is ambiguous",
+    teamId      => $TEST_TEAMS{dup}{id},
+    assigneeId  => $TEST_USERS{dup}{id},
+  }),
+  "ambiguous user/team means user-at-team",
 );
 
 done_testing;

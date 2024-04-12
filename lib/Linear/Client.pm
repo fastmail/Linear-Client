@@ -295,7 +295,7 @@ async sub lookup_team_or_user ($self, $string) {
     $self->lookup_team($team_name),
   );
 
-  die "team-or-user name $string is ambiguous" if $user && $team;
+  die "team-or-user name $string is ambiguous\n" if $user && $team;
 
   return (user => $user) if $user;
   return (team => $team) if $team;
@@ -328,16 +328,25 @@ async sub who_or_what ($self, $spec) {
     $team = await $self->lookup_team($teamname);
     die "can't find team for $teamname\n" unless $team;
   } else {
-    my ($type, $thing) = await $self->lookup_team_or_user($spec);
+    my ($type, $thing) = eval { await $self->lookup_team_or_user($spec); };
 
-    die qq{can't find a user or team for "$spec"\n} unless $type;
-
-    if ($type eq 'user') {
-      $user = $thing;
-    } elsif ($type eq 'team') {
-      $team = $thing;
+    if ($type) {
+      if ($type eq 'user') {
+        $user = $thing;
+      } elsif ($type eq 'team') {
+        $team = $thing;
+      } else {
+        die "unreachable condition: found something neither team nor user!\n";
+      }
     } else {
-      die "unreachable condition: found something neither team nor user!\n";
+      if ($@ eq "team-or-user name $spec is ambiguous\n") {
+        ($user, $team) = await Future->needs_all(
+          $self->lookup_user($spec),
+          $self->lookup_team($spec),
+        );
+      } else {
+        die qq{can't find a user or team for "$spec"\n};
+      }
     }
   }
 
