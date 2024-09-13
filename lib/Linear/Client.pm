@@ -1001,7 +1001,7 @@ async sub search_issues ($self, $search) {
     },
     priority => sub ($i)    { return { eq => $i } },
     project  => sub ($id)   { return { id   => { eq => $id    } } },
-    state    => sub ($name) { return { name => { eq => $name  } } },
+    state    => sub ($name) { return { name => { eqIgnoreCase => $name  } } },
     team     => sub ($id)   { return { id   => { eq => $id    } } },
   );
 
