@@ -46,6 +46,11 @@ sub maybe_log ($self, $arg) {
   $flogger->log($arg);
 }
 
+has timeout => (
+  is      => 'ro',
+  default => 60,
+);
+
 has _http => (
   is        => 'ro',
   lazy      => 1,
@@ -54,7 +59,7 @@ has _http => (
     my $loop = IO::Async::Loop->new();
     my $http = Net::Async::HTTP->new(
       notifier_name => 'Linear::Client',
-      timeout       => 60,
+      timeout       => $self->timeout,
     );
     $loop->add( $http );
 
