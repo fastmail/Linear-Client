@@ -624,11 +624,6 @@ my %SWITCH_HANDLER = (
   dev       => mk_label_cb('Feature Dev'),
   standards => mk_label_cb('Standards Work'),
 
-  bak       => mk_label_cb('Backend'),
-  cli       => mk_label_cb('Client'),
-  dsc       => mk_label_cb('Data Science'),
-  plu       => mk_label_cb('Plumbing'),
-
   state   => mk_state_cb(undef),
   done    => mk_state_cb('Done', 1),
   start   => mk_state_cb('In Progress', 1),
