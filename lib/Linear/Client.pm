@@ -209,6 +209,7 @@ cached_attr team => (
   query_args => {},
   nodes_select => [
     qw(id key name),
+    defaultIssueState => [ qw( id ) ],
     labels => [ nodes => [ qw( id name color ) ] ],
     states => [ nodes => [ qw( id name color ) ] ],
   ],
