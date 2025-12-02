@@ -223,7 +223,10 @@ cached_attr team => (
 cached_attr user => (
   query_name => 'users',
   query_args => {},
-  nodes_select => [ qw( id displayName name ) ],
+  nodes_select => [
+    qw( id displayName name ),
+    teams => [ nodes => [ qw( id ) ] ],
+  ],
   node_mapper => sub ($nodes) {
     my $dict = {};
 
