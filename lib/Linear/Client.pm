@@ -985,8 +985,8 @@ async sub search_issues ($self, $search) {
   state %replace = (
     closed => sub ($closed) {
       return $closed
-        ? (state => { type => {  in => [ qw( canceled completed ) ] } })
-        : (state => { type => { nin => [ qw( canceled completed ) ] } });
+        ? (state => { type => {  in => [ qw( canceled completed duplicate ) ] } })
+        : (state => { type => { nin => [ qw( canceled completed duplicate ) ] } });
     },
     label => sub ($label) {
       # This is a mess, too... -- rjbs, 2021-12-20
